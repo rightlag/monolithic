@@ -5,9 +5,9 @@ admin.autodiscover()
 
 urlpatterns = patterns('',
     # Examples:
-    # url(r'^$', 'seniordesign.views.home', name='home'),
+    # url(r'^$', 'monolithic.views.home', name='home'),
     # url(r'^blog/', include('blog.urls')),
 
-    url(r'^api/', include('app.urls')),
+    url(r'^api/v1/', include('app.urls')),
     url(r'^admin/', include(admin.site.urls)),
 )
