@@ -6,7 +6,7 @@ import datetime
 import json
 import sys
 
-from app.serializers import RegistrationSerializer, UserSerializer, PasswordSerializer
+from app.serializers import RegistrationSerializer, ProfileSerializer, UserSerializer, PasswordSerializer
 from django.contrib.auth.models import User
 from django.core import exceptions
 from django.http import JsonResponse
@@ -86,6 +86,36 @@ class BucketList(APIView):
         buckets = conn.get_all_buckets()
         return JsonResponse(buckets, encoder=ComplexEncoder, safe=False)
 
+@api_view(['GET'])
+def S3Summary(request):
+    """Retrieve total amount of buckets and the total size for all
+    buckets."""
+    conn = boto.s3.connect_to_region('us-east-1')
+    buckets = conn.get_all_buckets()
+    size = 0
+    for bucket in buckets:
+        for key in bucket.get_all_keys():
+            size += key.size
+    return Response({
+        'buckets': len(buckets),
+        'size': size,
+    }, status=status.HTTP_200_OK)
+
+@api_view(['GET'])
+def EC2Summary(request):
+    conn = boto.ec2.connect_to_region('us-east-1')
+    response = {}
+    response['running'] = conn.get_only_instances(filters={
+        'instance_state_name': 'running',
+    })
+    response['running'] = len(response['running'])
+    response['volumes'] = conn.get_all_volumes()
+    response['volumes'] = len(response['volumes'])
+    response['active'] = conn.get_all_reservations(filters={
+        # need stuff here
+    })
+    return Response(response, status=status.HTTP_200_OK)
+
 class PolicyDetail(APIView):
     pass
 
@@ -128,19 +158,17 @@ class UserViewSet(viewsets.ModelViewSet):
             try:
                 user = User.objects.get(email=serializer.data['email'])
             except exceptions.ObjectDoesNotExist, e:
-                return Response(e.message, status=status.HTTP_400_BAD_REQUEST)
+                return Response(e.message, status=status.HTTP_404_NOT_FOUND)
             return Response(serializer.data, status=HTTP_200_OK)
 
-    @detail_route()
-    def profile(self, request, pk=None, format=None):
+    @list_route(methods=['POST'])
+    def profile(self, request, format=None):
         """Update profile route."""
-        user = self.get_object()
-        # Need to check the authentication token from the request and make
-        # sure that it is equivalent to the authentication from the user
-        # object.
-        sys.stdout.write('{}\n'.format(request.data))
-        serializer = UserSerializer(data=user)
-        if serializer.is_valid():
-            return Response(serializer.data)
-        else:
-            return Response('Invalid')
+        try:
+            user = User.objects.get(auth_token=request.data['auth_token'])
+        except exceptions.ObjectDoesNotExist, e:
+            return Response(e.message, status=status.HTTP_404_NOT_FOUND)
+        serializer = ProfileSerializer(data=request.data)
+        if serializer.is_valid(raise_exception=True):
+            serializer.update(user, serializer.data)
+            return Response(serializer.data, status=status.HTTP_200_OK)

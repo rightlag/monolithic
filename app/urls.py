@@ -13,6 +13,8 @@ urlpatterns = (
         views.KeyList.as_view()),
     url(r'api/v1/buckets/(?P<bucket>(.*))/keys/(?P<key>(.*))/$',
         views.KeyDetail.as_view()),
+    url(r'api/v1/summary/s3/$', views.S3Summary),
+    url(r'api/v1/summary/ec2/$', views.EC2Summary),
     url(r'api/v1/reservations/$', views.ReservationList.as_view()),
     url(r'api/v1/reservations/(?P<reservation_id>(.*))/$',
         views.ReservationDetail.as_view()),
