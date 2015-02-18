@@ -89,3 +89,13 @@ USE_TZ = True
 STATIC_URL = '/static/'
 
 CORS_ORIGIN_ALLOW_ALL = True
+
+EMAIL_HOST = 'smtp.gmail.com'
+
+EMAIL_HOST_USER = 'rightlag@gmail.com'
+
+EMAIL_HOST_PASSWORD = 't5Cru3uNesun'
+
+EMAIL_PORT = 587
+
+EMAIL_USE_TLS = True

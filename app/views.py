@@ -9,6 +9,7 @@ import sys
 from app.serializers import RegistrationSerializer, ProfileSerializer, UserSerializer, PasswordSerializer
 from django.contrib.auth.models import User
 from django.core import exceptions
+from django.core import serializers
 from django.http import JsonResponse
 from rest_framework import status
 from rest_framework import viewsets
@@ -161,14 +162,18 @@ class UserViewSet(viewsets.ModelViewSet):
                 return Response(e.message, status=status.HTTP_404_NOT_FOUND)
             return Response(serializer.data, status=HTTP_200_OK)
 
-    @list_route(methods=['POST'])
-    def profile(self, request, format=None):
+    @detail_route(['GET', 'POST'])
+    def profile(self, request, pk=None, format=None):
         """Update profile route."""
         try:
-            user = User.objects.get(auth_token=request.data['auth_token'])
+            user = User.objects.get(auth_token=pk)
         except exceptions.ObjectDoesNotExist, e:
             return Response(e.message, status=status.HTTP_404_NOT_FOUND)
-        serializer = ProfileSerializer(data=request.data)
-        if serializer.is_valid(raise_exception=True):
-            serializer.update(user, serializer.data)
-            return Response(serializer.data, status=status.HTTP_200_OK)
+        if request.method == 'GET':
+            serializer = UserSerializer(user, context={'request': request})
+            return Response(serializer.data)
+        elif request.method == 'POST':
+            serializer = ProfileSerializer(data=request.data)
+            if serializer.is_valid(raise_exception=True):
+                serializer.update(user, serializer.data)
+                return Response(serializer.data, status=status.HTTP_200_OK)
