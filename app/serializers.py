@@ -1,7 +1,7 @@
-import smtplib
-
+from app import models
 from django.contrib.auth.models import User
 from django.core.mail import send_mail
+from django.utils.crypto import get_random_string
 from rest_framework import serializers
 
 class UserSerializer(serializers.HyperlinkedModelSerializer):
@@ -35,10 +35,15 @@ class RegistrationSerializer(serializers.ModelSerializer):
         user = User(
             email=validated_data['email'],
             username=validated_data['username'],
-            is_active=False
+            is_active=False,
         )
         user.set_password(validated_data['password'])
         user.save()
+        # Generate a unique alphanumeric string to verify the user.
+        code = get_random_string(length=32)
+        verification = models.Verification(verification_code=code,
+                                           user=user)
+        verification.save()
         return user
 
 class PasswordSerializer(serializers.ModelSerializer):

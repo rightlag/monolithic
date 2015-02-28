@@ -22,4 +22,5 @@ urlpatterns = (
         views.InstanceDetail.as_view()),
     url(r'api/v1/metrics/(?P<instance_id>(.*))/$', views.metrics),
     url(r'api/v1/auth/$', auth_token.obtain_auth_token),
+    url(r'api/v1/auth/verify/(?P<verification_code>(.*))/$', views.verify),
 )

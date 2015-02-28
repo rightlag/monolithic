@@ -39,6 +39,7 @@ INSTALLED_APPS = (
     'rest_framework',
     'rest_framework.authtoken',
     'corsheaders',
+    'django_ses',
     'app',
 )
 
@@ -88,14 +89,14 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 
+# Cross-Origin Resource Sharing Configuration
 CORS_ORIGIN_ALLOW_ALL = True
 
-EMAIL_HOST = 'smtp.gmail.com'
+# Amazon SES SMTP Configuration
+# Access key and secret key should be specified as environment variables
+# in ~/.boto file.
+EMAIL_BACKEND = 'django_ses.SESBackend'
 
-EMAIL_HOST_USER = 'rightlag@gmail.com'
+AWS_SES_REGION_NAME = 'us-east-1'
 
-EMAIL_HOST_PASSWORD = 't5Cru3uNesun'
-
-EMAIL_PORT = 587
-
-EMAIL_USE_TLS = True
+AWS_SES_REGION_ENDPOINT = 'email.us-east-1.amazonaws.com'

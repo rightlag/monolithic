@@ -2,14 +2,18 @@ import boto.ec2
 import boto.ec2.cloudwatch
 import boto.exception
 import boto.s3
+import boto.ses.exceptions
 import datetime
 import json
 import sys
 
+from app import email
+from app import models
 from app.serializers import RegistrationSerializer, ProfileSerializer, UserSerializer, PasswordSerializer
 from django.contrib.auth.models import User
 from django.core import exceptions
 from django.core import serializers
+from django.core.mail import send_mail
 from django.http import JsonResponse
 from rest_framework import status
 from rest_framework import viewsets
@@ -144,9 +148,19 @@ class UserViewSet(viewsets.ModelViewSet):
 
     @list_route(methods=['POST'])
     def register(self, request, format=None):
+        """Register a new user."""
         serializer = RegistrationSerializer(data=request.data)
         if serializer.is_valid(raise_exception=True):
-            serializer.create(serializer.data)
+            user = serializer.create(serializer.data)
+            try:
+                send_mail(email.ACCOUNT_ACTIVATION_SUBJECT,
+                          email.ACCOUNT_ACTIVATION_MESSAGE
+                          .format(user.verification),
+                          email.FROM_EMAIL,
+                          [serializer.data['email'],],
+                          fail_silently=False)
+            except boto.ses.exceptions.SESError, e:
+                return Response(e.message, status=status.HTTP_400_BAD_REQUEST)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @list_route(methods=['POST'])
@@ -175,3 +189,23 @@ class UserViewSet(viewsets.ModelViewSet):
             if serializer.is_valid(raise_exception=True):
                 serializer.update(user, serializer.data)
                 return Response(serializer.data, status=status.HTTP_200_OK)
+
+@api_view(['GET'])
+def verify(request, verification_code=None, format=None):
+    """Function used to verify user account. Token is passed to the
+    URI and checked against the value stored in the database during
+    the registration process."""
+    code = verification_code
+    try:
+        verification = models.Verification.objects.get(verification_code=code)
+    except exceptions.ObjectDoesNotExist, e:
+        return Response(e.message, status=status.HTTP_404_NOT_FOUND)
+    # Verification token matches. Update `is_active` flag to 1.
+    user = verification.user
+    if user.is_active:
+        return Response('User is already activated',
+                        status=status.HTTP_400_BAD_REQUEST)
+    user.is_active = True
+    user.save()
+    return Response('Account activation successful',
+                    status=status.HTTP_200_OK)

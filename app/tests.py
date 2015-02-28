@@ -1,16 +1,28 @@
+from app import models
 from app import serializers
 from django.contrib.auth.models import User
+from django.test import Client
 from django.test import TestCase
+from django.utils.crypto import get_random_string
 
 class RegisterTestCase(TestCase):
     def setUp(self):
+        self.client = Client()
         self.user = User.objects.create(username='TestUser',
                                         email='example@domain.com')
+        code = get_random_string(length=32)
+        verification = models.Verification(verification_code=code,
+                                           user=self.user)
+        verification.save()
 
     def test_user_has_auth_token(self):
         """Assert user has `auth_token` attribute after account
         creation."""
-        self.assertEqual(hasattr(self.user, 'auth_token'), True)
+        self.assertTrue(hasattr(self.user, 'auth_token'))
+
+    def test_user_has_verification_token(self):
+        """Assert user has `verification` attribute."""
+        self.assertIsNotNone(self.user.verification)
 
     def test_user_has_updated_profile(self):
         """Assert user object is updated accordingly."""
@@ -25,3 +37,11 @@ class RegisterTestCase(TestCase):
         self.assertEqual(self.user.first_name, 'John')
         self.assertEqual(self.user.last_name, 'Smith')
         self.assertEqual(self.user.email, 'JohnSmith@domain.com')
+
+    def test_email_verification(self):
+        response = self.client.post('/api/v1/users/register/', {
+            'username': 'test_user',
+            'email': 'rightlag@gmail.com',
+            'password': 'test_password',
+        })
+        self.assertEqual(response.status_code, 201)

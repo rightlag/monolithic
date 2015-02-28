@@ -28,3 +28,10 @@ class Policy(models.Model):
 
     def __unicode__(self):
         return self.name
+
+class Verification(models.Model):
+    verification_code = models.CharField(max_length=255)
+    user = models.OneToOneField(User)
+
+    def __unicode__(self):
+        return self.verification_code
