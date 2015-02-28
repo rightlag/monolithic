@@ -1,0 +1,4 @@
+Django==1.7.5
+djangorestframework==3.0.3
+django-cors-headers==1.0.0
+boto==2.35.1

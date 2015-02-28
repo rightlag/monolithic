@@ -26,7 +26,7 @@ Monolithic development is hosted by Atlassian, an Australian enterprise software
 
     https://www.atlassian.com/
 
-And the Monolithic development page is here:
+And the Monolithic development page is here (deprecated):
 
     https://monolithic.atlassian.net/
 
