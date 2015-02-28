@@ -112,7 +112,7 @@ def EC2Summary(request):
     response['running'] = len(response['running'])
     response['volumes'] = conn.get_all_volumes()
     response['volumes'] = len(response['volumes'])
-    response['active'] = pass
+    response['active'] = None
     return Response(response, status=status.HTTP_200_OK)
 
 class PolicyDetail(APIView):
