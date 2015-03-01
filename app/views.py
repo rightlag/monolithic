@@ -203,6 +203,27 @@ class UserViewSet(viewsets.ModelViewSet):
                 serializer.update(user, serializer.data)
                 return Response(serializer.data, status=status.HTTP_200_OK)
 
+    @decorators.detail_route(['GET'])
+    def access(self, request, pk=None, format=None):
+        """Determine if the user has AWS access key id(s) and secret
+        key(s) associated with their account.
+
+        Returns:
+          HTTP_403_FORBIDDEN: If `user.keypair_set` returns an empty
+            list object.
+          HTTP_200_OK: If the `user.keypair_set` return a non-empty list
+            object.
+        """
+        try:
+            user = User.objects.get(auth_token=pk)
+        except exceptions.ObjectDoesNotExist, e:
+            return Response(e.message, status=status.HTTP_404_NOT_FOUND)
+        if not user.keypair_set.all():
+            return Response(('User does not have access keys and secret keys '
+                             'associated with account'),
+                            status=status.HTTP_403_FORBIDDEN)
+        return Response(status=status.HTTP_200_OK)
+
 @decorators.api_view(['GET'])
 def verify(request, verification_code=None, format=None):
     """Function used to verify user account. Token is passed to the URI
