@@ -253,8 +253,6 @@ class UserViewSet(viewsets.ModelViewSet):
         try:
             conn.get_all_regions()
         except boto.exception.EC2ResponseError, e:
-            # Remove the quotes from the error message
-            e.message = e.message.replace('"', '')
             return Response(e.message, status=status.HTTP_401_UNAUTHORIZED)
         if request.method == 'POST':
             serializer = serializers.KeypairSerializer(data=request.data)
