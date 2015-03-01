@@ -1,3 +1,5 @@
+import pdb
+
 from app import models
 from django.contrib.auth.models import User
 from django.core.mail import send_mail
@@ -52,3 +54,11 @@ class PasswordSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ('email',)
+
+class KeypairSerializer(serializers.ModelSerializer):
+    """AWS Access Key and Secret Key serializer."""
+    user = UserSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = models.Keypair
+        fields = ('access_key', 'secret_key', 'user',)
