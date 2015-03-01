@@ -9,15 +9,14 @@ import sys
 
 from app import email
 from app import models
-from app.serializers import RegistrationSerializer, ProfileSerializer, UserSerializer, PasswordSerializer
+from app import serializers
 from django.contrib.auth.models import User
 from django.core import exceptions
-from django.core import serializers
 from django.core.mail import send_mail
 from django.http import JsonResponse
+from rest_framework import decorators
 from rest_framework import status
 from rest_framework import viewsets
-from rest_framework.decorators import api_view, detail_route, list_route
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -67,7 +66,7 @@ class InstanceDetail(APIView):
         instance = conn.get_only_instances(instance_ids=instance_ids)
         return JsonResponse(instance[0].__dict__, encoder=ComplexEncoder)
 
-@api_view(['GET'])
+@decorators.api_view(['GET'])
 def metrics(request, instance_id, format=None):
     """Get metric data for a specific EC2 instance."""
     # need to configure default values for metric data within core module
@@ -91,7 +90,7 @@ class BucketList(APIView):
         buckets = conn.get_all_buckets()
         return JsonResponse(buckets, encoder=ComplexEncoder, safe=False)
 
-@api_view(['GET'])
+@decorators.api_view(['GET'])
 def S3Summary(request):
     """Retrieve total amount of buckets and the total size for all
     buckets."""
@@ -106,7 +105,7 @@ def S3Summary(request):
         'size': size,
     }, status=status.HTTP_200_OK)
 
-@api_view(['GET'])
+@decorators.api_view(['GET'])
 def EC2Summary(request):
     conn = boto.ec2.connect_to_region('us-east-1')
     response = {}
@@ -144,13 +143,14 @@ class KeyDetail(APIView):
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
-    serializer_class = UserSerializer
+    serializer_class = serializers.UserSerializer
 
-    @list_route(methods=['POST'])
+    @decorators.list_route(methods=['POST'])
     def register(self, request, format=None):
         """Register a new user."""
-        serializer = RegistrationSerializer(data=request.data)
+        serializer = serializers.RegistrationSerializer(data=request.data)
         if serializer.is_valid(raise_exception=True):
+            # Move this in the try/except block
             user = serializer.create(serializer.data)
             try:
                 send_mail(email.ACCOUNT_ACTIVATION_SUBJECT,
@@ -163,10 +163,10 @@ class UserViewSet(viewsets.ModelViewSet):
                 return Response(e.message, status=status.HTTP_400_BAD_REQUEST)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    @list_route(methods=['POST'])
+    @decorators.list_route(methods=['POST'])
     def reset(self, request, format=None):
         """Reset user password."""
-        serializer = PasswordSerializer(data=request.data)
+        serializer = serializers.PasswordSerializer(data=request.data)
         if serializer.is_valid(raise_exception=True):
             try:
                 user = User.objects.get(email=serializer.data['email'])
@@ -174,35 +174,49 @@ class UserViewSet(viewsets.ModelViewSet):
                 return Response(e.message, status=status.HTTP_404_NOT_FOUND)
             return Response(serializer.data, status=HTTP_200_OK)
 
-    @detail_route(['GET', 'POST'])
+    @decorators.detail_route(['GET', 'PUT'])
     def profile(self, request, pk=None, format=None):
-        """Update profile route."""
+        """Update user profile. Two request methods are handled:
+
+        Raises:
+          ObjectDoesNotExist: If user object is not found.
+
+        GET:
+          Used to fetch user object and return a serialized
+          instance of that user object.
+
+        PUT:
+          Used to update existing user object.
+        """
         try:
             user = User.objects.get(auth_token=pk)
         except exceptions.ObjectDoesNotExist, e:
             return Response(e.message, status=status.HTTP_404_NOT_FOUND)
         if request.method == 'GET':
-            serializer = UserSerializer(user, context={'request': request})
+            context = {'request': request,}
+            serializer = serializers.UserSerializer(user,
+                                                    context=context)
             return Response(serializer.data)
-        elif request.method == 'POST':
-            serializer = ProfileSerializer(data=request.data)
+        elif request.method == 'PUT':
+            serializer = serializers.ProfileSerializer(data=request.data)
             if serializer.is_valid(raise_exception=True):
                 serializer.update(user, serializer.data)
                 return Response(serializer.data, status=status.HTTP_200_OK)
 
-@api_view(['GET'])
+@decorators.api_view(['GET'])
 def verify(request, verification_code=None, format=None):
-    """Function used to verify user account. Token is passed to the
-    URI and checked against the value stored in the database during
-    the registration process."""
+    """Function used to verify user account. Token is passed to the URI
+    and checked against the value stored in the database during the
+    registration process."""
     code = verification_code
     try:
         verification = models.Verification.objects.get(verification_code=code)
     except exceptions.ObjectDoesNotExist, e:
         return Response(e.message, status=status.HTTP_404_NOT_FOUND)
-    # Verification token matches. Update `is_active` flag to 1.
+    # Verification token matches. Update `is_active` flag to True.
     user = verification.user
     if user.is_active:
+        # User is already active, return a HTTP 400 BAD REQUEST.
         return Response('User is already activated',
                         status=status.HTTP_400_BAD_REQUEST)
     user.is_active = True
