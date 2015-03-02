@@ -1,0 +1,154 @@
+This document contains the release notes for the Monolithic project.
+
+commit 5e119ebfe62c0002cf12251fcb59047b0c024f1d
+Author: rightlag <rightlag@gmail.com>
+Date:   Sun Mar 1 19:59:54 2015 +0000
+
+    Revert back to original code for handling the EC2ResponseError exception.
+
+commit 45a3104b89c95f0283e92dcb58f32ce4d1941c84
+Author: rightlag <rightlag@gmail.com>
+Date:   Sun Mar 1 19:48:02 2015 +0000
+
+    Remove the quotes from the EC2ResponseError when verifying AWS access and secret keys.
+
+commit 170b3fe2fd34df3075a8728989f4ea119fb07f29
+Author: rightlag <rightlag@gmail.com>
+Date:   Sun Mar 1 19:29:36 2015 +0000
+
+    Created Keypair serializer and a method in the UserViewSet to persist AWS access and secret keys to the user account.
+
+commit 15f65c7c11ea1f8236536e58203a7b199df636d2
+Author: rightlag <rightlag@gmail.com>
+Date:   Sun Mar 1 16:17:15 2015 +0000
+
+    Created a method to determine if user has AWS access keys and secret keys associated with their account.
+
+commit 539ccc9ea8f45dcebd81b232797e30d803949fa3
+Author: rightlag <rightlag@gmail.com>
+Date:   Sun Mar 1 15:33:52 2015 +0000
+
+    Removed trailing comma in serializers.py and cleaned up module imports in views.py. Also changed request method of profile method in UserViewSet class from POST to PUT.
+
+commit 5db222c4ffe87e40cff4f11a32428ff1ac22b288
+Author: rightlag <rightlag@gmail.com>
+Date:   Sat Feb 28 22:29:15 2015 +0000
+
+    Created email verification for registration process. Configured AWS SES SMTP mail endpoint to send account registration verification email. Created unit test to ensure user has a verification token after registration process.
+
+commit 417dbc93f1bfbc532071d2023f3d3d77c2519dcb
+Author: rightlag <rightlag@gmail.com>
+Date:   Sat Feb 28 16:50:57 2015 +0000
+
+    Fixed syntax error in views.py. Assigned  key to None as opposed to pass.
+
+commit c2a7c4c649c08965cb74141ea63b8e237edf88d8
+Author: rightlag <rightlag@gmail.com>
+Date:   Sat Feb 28 16:46:45 2015 +0000
+
+    Update README.md. Added INSTALL and requirements.txt file to the root directory of the project. requirements.txt contains dependencies that are needed to deploy the Monolithic API.
+
+commit cf6e0cb188056540d7c37ffd4595d1a3a4cf7ff8
+Author: rightlag <rightlag@gmail.com>
+Date:   Wed Feb 18 22:47:20 2015 +0000
+
+    Added fields to UserSerializer class
+
+commit a0f8f6da7c17cb5fa71560bd797dd724be2755d6
+Author: rightlag <rightlag@gmail.com>
+Date:   Wed Feb 18 22:32:58 2015 +0000
+
+    Created unit test to ensure that user profile data is being updated and changed profile endpoint to be a detail_route as opposed to a list_route. The user will pass the auth_token parameter to the endpoint, and based upon the request, it will either retrieve the user object or update the user object.
+
+commit 4ed56ddf9e7734b318c1c40a2f80045630f75767
+Author: rightlag <rightlag@gmail.com>
+Date:   Tue Feb 17 14:54:28 2015 +0000
+
+    Added ProfileSerializer class to update user profile, added EC2 and S3 summary endpoints for dashboard view
+
+commit e10cbda525bde8a2c9332a29fc438cd3dae728af
+Author: rightlag <rightlag@gmail.com>
+Date:   Wed Feb 11 21:29:47 2015 +0000
+
+    Created post save event to generate user token after registration process, created registration functionality, created endpoint to retrieve metric data for EC2 instances, created endpoints for reservations, instances, buckets, and keys
+
+commit 099e4215683113e93badf102341598ceb7494209
+Merge: 0afd827 397c81e
+Author: Jason Walsh <rightlag@gmail.com>
+Date:   Sun Feb 1 16:33:39 2015 -0500
+
+    Merged in MON-10-create-keypair-and-policy-models (pull request #4)
+
+    Added Keypair and Policy models to API MON-10
+
+commit 397c81e9716fb313ff9a07216e78905dcee226bb
+Author: rightlag <rightlag@gmail.com>
+Date:   Sun Feb 1 21:25:41 2015 +0000
+
+    Added Keypair and Policy models to API MON-10
+
+commit 32fb1a7cd430730ba1d9bb56069edcafc6d30ba4
+Author: rightlag <rightlag@gmail.com>
+Date:   Sun Feb 1 16:24:52 2015 +0000
+
+    Removed compiled Python files, modified .gitignore file, created UserSerialzer class, created serializer class for serializing EC2 and S3 instances
+
+commit 0afd82766fdb58731be17f41d9f0cee2ce5357cc
+Merge: df3925c 9042895
+Author: Jason Walsh <rightlag@gmail.com>
+Date:   Wed Oct 22 17:48:40 2014 -0400
+
+    Merged in development (pull request #3)
+
+    Merge development into master
+
+commit 9042895a36b270380506988d23b8da16beff9722
+Merge: f3bc6bb 6526c35
+Author: Jason Walsh <rightlag@gmail.com>
+Date:   Wed Oct 22 17:44:18 2014 -0400
+
+    Merged in MON-10-update-readme (pull request #2)
+
+    Update README.md
+
+commit 6526c35a6a8d9dde9dbeacc31c91e24d293d6a9c
+Author: Jason Walsh <rightlag@gmail.com>
+Date:   Wed Oct 22 21:42:40 2014 +0000
+
+    Update README.md MON-10
+
+commit f3bc6bb7ba4822bfc788b420c633f50cfb535207
+Merge: df3925c 7c7f9ff
+Author: Jason Walsh <rightlag@gmail.com>
+Date:   Wed Oct 22 17:02:10 2014 -0400
+
+    Merged in MON-9-install-django-rest-framework (pull request #1)
+
+    Install Django REST Framework
+
+commit 7c7f9ff7ce58e8fb3f5f4d88b7feb0bf2e807a03
+Author: Jason Walsh <rightlag@gmail.com>
+Date:   Wed Oct 22 20:48:09 2014 +0000
+
+    Installed Django REST Framework and configured database dictionary MON-9
+
+commit df3925c54defc130f2d3ace4a536fca392ddfbeb
+Merge: 34590e8 775fc57
+Author: Jason Walsh <rightlag@gmail.com>
+Date:   Mon Sep 22 17:18:27 2014 -0400
+
+    Merge pull request #1 from rightlag/jason-dev
+
+    Add README.md
+
+commit 775fc57cedcd2372802dcb47bf65c042752af76d
+Author: Jason Walsh <rightlag@gmail.com>
+Date:   Mon Sep 22 21:17:45 2014 +0000
+
+    Add README.md
+
+commit 34590e8ae90bae7be544478dc2724462a20f45ce
+Author: Jason Walsh <rightlag@gmail.com>
+Date:   Mon Sep 22 21:07:14 2014 +0000
+
+    Initial commit
