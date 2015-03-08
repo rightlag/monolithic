@@ -200,24 +200,11 @@ class UserViewSet(viewsets.ModelViewSet):
                 serializer.update(request.user, serializer.data)
                 return Response(serializer.data, status=status.HTTP_200_OK)
 
-    @decorators.list_route(['POST'])
-    def keypair(self, request, pk=None, format=None):
-        """This method allows users to manipulate their AWS access and
-        secret key pairs. There are two checks to this method:
+class KeypairViewSet(viewsets.ModelViewSet):
+    queryset = models.Keypair.objects.all()
+    serializer_class = serializers.KeypairSerializer
 
-        The first check determines whether or not the user exists by
-        verifying the authorization token that is passed specified in
-        the URL.
-
-        The second check attempts to make a call to AWS EC2 endpoint to
-        query all available EC2 regions. If the reuest returns a status
-        code of 401 Unauthorized, then the access and secret keys will
-        NOT be persisted to the database.
-        """
-        try:
-            user = User.objects.get(auth_token=request.data['auth_token'])
-        except exceptions.ObjectDoesNotExist, e:
-            return Response(e.message, status=status.HTTP_404_NOT_FOUND)
+    def create(self, request, format=None):
         access_key = request.data['access_key']
         secret_key = request.data['secret_key']
         conn = (boto
@@ -229,13 +216,12 @@ class UserViewSet(viewsets.ModelViewSet):
             conn.get_all_regions()
         except boto.exception.EC2ResponseError, e:
             return Response(e.message, status=status.HTTP_401_UNAUTHORIZED)
-        if request.method == 'POST':
-            serializer = serializers.KeypairSerializer(data=request.data)
-            if serializer.is_valid(raise_exception=True):
-                keypair = serializer.create(serializer.data)
-                user.keypair_set.add(keypair)
-                return Response(serializer.data,
-                                status=status.HTTP_201_CREATED)
+        serializer = serializers.KeypairSerializer(data=request.data)
+        if serializer.is_valid(raise_exception=True):
+            keypair = serializer.create(serializer.data)
+            request.user.keypair_set.add(keypair)
+            return Response(serializer.data,
+                            status=status.HTTP_201_CREATED)
 
 @decorators.api_view(['GET'])
 def access(request, format=None):

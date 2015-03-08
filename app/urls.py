@@ -5,6 +5,7 @@ from app import views
 
 router = routers.DefaultRouter()
 router.register(r'users', views.UserViewSet)
+router.register(r'keypairs', views.KeypairViewSet)
 
 urlpatterns = (
     url(r'api/v1/', include(router.urls)),
