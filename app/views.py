@@ -169,27 +169,38 @@ class UserViewSet(viewsets.ModelViewSet):
     @decorators.list_route(methods=['POST'],
                            permission_classes=[permissions.AllowAny])
     def reset(self, request, format=None):
-        """Reset user password."""
-        context = {'request': request,}
-        serializer = serializers.PasswordSerializer(request.data,
-                                                    context=context)
-        try:
-            user = User.objects.get(username=serializer.data['username'])
-        except exceptions.ObjectDoesNotExist, e:
-            return Response(e.message, status=status.HTTP_404_NOT_FOUND)
-        password = code = get_random_string(length=8)
-        user.set_password(password)
-        user.save()
-        try:
-            send_mail(email.ACCOUNT_RESET_PASSWORD_SUBJECT,
-                      email.ACCOUNT_RESET_PASSWORD_MESSAGE
-                      .format(password),
-                      email.FROM_EMAIL,
-                      [user.email,],
-                      fail_silently=False)
-        except boto.ses.exceptions.SESError, e:
-            return Response(e.message, status=status.HTTP_400_BAD_REQUEST)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        """Reset user password.
+
+        This method can be called for authenicated or non-authenticated
+        users.
+        """
+        if request.auth:
+            if not request.user.check_password(request.data['current_pass']):
+                return Response(status=status.HTTP_404_BAD_REQUEST)
+            request.user.set_password(request.data['new_pass'])
+            request.user.save()
+            return Response(status=status.HTTP_200_OK)
+        else:
+            context = {'request': request,}
+            serializer = serializers.PasswordSerializer(request.data,
+                                                        context=context)
+            try:
+                user = User.objects.get(username=serializer.data['username'])
+            except exceptions.ObjectDoesNotExist, e:
+                return Response(e.message, status=status.HTTP_404_NOT_FOUND)
+            password = code = get_random_string(length=8)
+            user.set_password(password)
+            user.save()
+            try:
+                send_mail(email.ACCOUNT_RESET_PASSWORD_SUBJECT,
+                          email.ACCOUNT_RESET_PASSWORD_MESSAGE
+                          .format(password),
+                          email.FROM_EMAIL,
+                          [user.email,],
+                          fail_silently=False)
+            except boto.ses.exceptions.SESError, e:
+                return Response(e.message, status=status.HTTP_400_BAD_REQUEST)
+            return Response(serializer.data, status=status.HTTP_200_OK)
 
     @decorators.list_route(['GET', 'PUT'])
     def profile(self, request, format=None):
