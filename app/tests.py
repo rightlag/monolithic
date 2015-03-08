@@ -55,9 +55,6 @@ class ProfileTestCase(TestCase):
         self.assertEqual(self.user.email, 'JohnSmith@domain.com')
 
     def test_user_has_updated_password(self):
-        pass
-
-    def test_reset_email_verification(self):
         response = self.client.post('/api/v1/users/reset/', {
             'username': 'TestUser',
         })

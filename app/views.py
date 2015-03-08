@@ -176,7 +176,7 @@ class UserViewSet(viewsets.ModelViewSet):
         """
         if request.auth:
             if not request.user.check_password(request.data['current_pass']):
-                return Response(status=status.HTTP_404_BAD_REQUEST)
+                return Response(status=status.HTTP_400_BAD_REQUEST)
             request.user.set_password(request.data['new_pass'])
             request.user.save()
             return Response(status=status.HTTP_200_OK)
