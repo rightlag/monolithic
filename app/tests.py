@@ -25,6 +25,21 @@ class RegisterTestCase(TestCase):
         """Assert user has `verification` attribute."""
         self.assertIsNotNone(self.user.verification)
 
+    def test_registration_email_verification(self):
+        response = self.client.post('/api/v1/users/register/', {
+            'username': 'test_user',
+            'email': 'rightlag@gmail.com',
+            'password': 'test_password',
+        })
+        self.assertEqual(response.status_code, 201)
+
+class ProfileTestCase(TestCase):
+    def setUp(self):
+        self.client = Client()
+        self.user = User(username='TestUser', email='example@domain.com')
+        self.user.set_password('password')
+        self.user.save()
+
     def test_user_has_updated_profile(self):
         """Assert user object is updated accordingly."""
         data = {
@@ -39,10 +54,8 @@ class RegisterTestCase(TestCase):
         self.assertEqual(self.user.last_name, 'Smith')
         self.assertEqual(self.user.email, 'JohnSmith@domain.com')
 
-    def test_email_verification(self):
-        response = self.client.post('/api/v1/users/register/', {
-            'username': 'test_user',
-            'email': 'rightlag@gmail.com',
-            'password': 'test_password',
+    def test_reset_email_verification(self):
+        response = self.client.post('/api/v1/users/reset/', {
+            'username': 'TestUser',
         })
-        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.status_code, 200)
