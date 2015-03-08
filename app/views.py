@@ -188,7 +188,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 user = User.objects.get(username=serializer.data['username'])
             except exceptions.ObjectDoesNotExist, e:
                 return Response(e.message, status=status.HTTP_404_NOT_FOUND)
-            password = code = get_random_string(length=8)
+            password = get_random_string(length=8)
             user.set_password(password)
             user.save()
             try:
