@@ -176,10 +176,13 @@ class UserViewSet(viewsets.ModelViewSet):
         """
         if request.auth:
             if not request.user.check_password(request.data['current_pass']):
-                return Response(status=status.HTTP_400_BAD_REQUEST)
+                return Response(('Password entered does not match current
+                                 'password'),
+                                status=status.HTTP_400_BAD_REQUEST)
             request.user.set_password(request.data['new_pass'])
             request.user.save()
-            return Response(status=status.HTTP_200_OK)
+            return Response('Password has been reset successfully',
+                            status=status.HTTP_200_OK)
         else:
             context = {'request': request,}
             serializer = serializers.PasswordSerializer(request.data,
