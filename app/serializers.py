@@ -12,10 +12,17 @@ class UserSerializer(serializers.HyperlinkedModelSerializer):
         fields = ('id', 'url', 'username', 'email', 'first_name',
                   'last_name',)
 
+class KeypairSerializer(serializers.ModelSerializer):
+    """AWS Access Key and Secret Key serializer."""
+    class Meta:
+        model = models.Keypair
+        fields = ('id', 'access_key', 'secret_key',)
+
 class ProfileSerializer(serializers.ModelSerializer):
+    keypair_set = KeypairSerializer(many=True, read_only=True)
     class Meta:
         model = User
-        fields = ('email', 'first_name', 'last_name',)
+        fields = ('email', 'first_name', 'last_name', 'keypair_set',)
 
     def update(self, instance, validated_data):
         instance.email = validated_data.get('email', instance.email)
@@ -54,11 +61,3 @@ class PasswordSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ('email',)
-
-class KeypairSerializer(serializers.ModelSerializer):
-    """AWS Access Key and Secret Key serializer."""
-    user = UserSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = models.Keypair
-        fields = ('access_key', 'secret_key', 'user',)

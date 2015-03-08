@@ -6,7 +6,6 @@ import boto.s3
 import boto.ses.exceptions
 import datetime
 import json
-import sys
 
 from app import email
 from app import models
@@ -16,6 +15,7 @@ from django.core import exceptions
 from django.core.mail import send_mail
 from django.http import JsonResponse
 from rest_framework import decorators
+from rest_framework import permissions
 from rest_framework import status
 from rest_framework import viewsets
 from rest_framework.response import Response
@@ -138,7 +138,7 @@ class KeyDetail(APIView):
         try:
             bucket = conn.get_bucket(bucket)
         except boto.exception.S3ResponseError, e:
-            return Response('Invalid bucket name')
+            return Response(e.message, status=status.HTTP_404_NOT_FOUND)
         key = bucket.get_key(key)
         return JsonResponse(key.__dict__, encoder=ComplexEncoder)
 
@@ -146,7 +146,8 @@ class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = serializers.UserSerializer
 
-    @decorators.list_route(methods=['POST'])
+    @decorators.list_route(methods=['POST'],
+                           permission_classes=[permissions.AllowAny])
     def register(self, request, format=None):
         """Register a new user."""
         serializer = serializers.RegistrationSerializer(data=request.data)
@@ -164,7 +165,8 @@ class UserViewSet(viewsets.ModelViewSet):
                 return Response(e.message, status=status.HTTP_400_BAD_REQUEST)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-    @decorators.list_route(methods=['POST'])
+    @decorators.list_route(methods=['POST'],
+                           permission_classes=[permissions.AllowAny])
     def reset(self, request, format=None):
         """Reset user password."""
         serializer = serializers.PasswordSerializer(data=request.data)
@@ -175,57 +177,30 @@ class UserViewSet(viewsets.ModelViewSet):
                 return Response(e.message, status=status.HTTP_404_NOT_FOUND)
             return Response(serializer.data, status=HTTP_200_OK)
 
-    @decorators.detail_route(['GET', 'PUT'])
-    def profile(self, request, pk=None, format=None):
+    @decorators.list_route(['GET', 'PUT'])
+    def profile(self, request, format=None):
         """Update user profile. Two request methods are handled:
 
-        Raises:
-          ObjectDoesNotExist: If user object is not found.
-
         GET:
-          Used to fetch user object and return a serialized
-          instance of that user object.
+          Used to fetch user object via `auth_token` sent in the HTTP
+          request payload. Return a serialized instance of that user
+          object.
 
         PUT:
           Used to update existing user object.
         """
-        try:
-            user = User.objects.get(auth_token=pk)
-        except exceptions.ObjectDoesNotExist, e:
-            return Response(e.message, status=status.HTTP_404_NOT_FOUND)
         if request.method == 'GET':
             context = {'request': request,}
-            serializer = serializers.UserSerializer(user,
-                                                    context=context)
-            return Response(serializer.data)
+            serializer = serializers.ProfileSerializer(request.user,
+                                                       context=context)
+            return Response(serializer.data, status=status.HTTP_200_OK)
         elif request.method == 'PUT':
             serializer = serializers.ProfileSerializer(data=request.data)
             if serializer.is_valid(raise_exception=True):
-                serializer.update(user, serializer.data)
+                serializer.update(request.user, serializer.data)
                 return Response(serializer.data, status=status.HTTP_200_OK)
 
-    @decorators.detail_route(['GET'])
-    def access(self, request, pk=None, format=None):
-        """Determine if the user has AWS access key id(s) and secret
-        key(s) associated with their account.
-
-        Returns:
-          HTTP_403_FORBIDDEN: If `user.keypair_set` returns an empty
-            list object.
-          HTTP_200_OK: If the `user.keypair_set` return a non-empty list
-            object.
-        """
-        try:
-            user = User.objects.get(auth_token=pk)
-        except exceptions.ObjectDoesNotExist, e:
-            return Response(e.message, status=status.HTTP_404_NOT_FOUND)
-        if not user.keypair_set.all():
-            return Response(('User does not have access keys and secret keys '
-                             'associated with account'),
-                            status=status.HTTP_403_FORBIDDEN)
-        return Response(status=status.HTTP_200_OK)
-
-    @decorators.detail_route(['POST', 'PUT'])
+    @decorators.list_route(['POST'])
     def keypair(self, request, pk=None, format=None):
         """This method allows users to manipulate their AWS access and
         secret key pairs. There are two checks to this method:
@@ -240,7 +215,7 @@ class UserViewSet(viewsets.ModelViewSet):
         NOT be persisted to the database.
         """
         try:
-            user = User.objects.get(auth_token=pk)
+            user = User.objects.get(auth_token=request.data['auth_token'])
         except exceptions.ObjectDoesNotExist, e:
             return Response(e.message, status=status.HTTP_404_NOT_FOUND)
         access_key = request.data['access_key']
@@ -263,6 +238,24 @@ class UserViewSet(viewsets.ModelViewSet):
                                 status=status.HTTP_201_CREATED)
 
 @decorators.api_view(['GET'])
+def access(request, format=None):
+    """Determine if the user has AWS access key id(s) and secret
+    key(s) associated with their account.
+
+    Returns:
+      HTTP_403_FORBIDDEN: If `user.keypair_set` returns an empty
+        list object.
+      HTTP_200_OK: If the `user.keypair_set` return a non-empty list
+        object.
+    """
+    if not request.user.keypair_set.all():
+        return Response(('User does not have access keys and secret keys '
+                         'associated with account'),
+                        status=status.HTTP_403_FORBIDDEN)
+    return Response(status=status.HTTP_200_OK)
+
+@decorators.api_view(['GET'])
+@decorators.permission_classes([permissions.AllowAny])
 def verify(request, verification_code=None, format=None):
     """Function used to verify user account. Token is passed to the URI
     and checked against the value stored in the database during the

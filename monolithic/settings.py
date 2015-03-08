@@ -100,3 +100,13 @@ EMAIL_BACKEND = 'django_ses.SESBackend'
 AWS_SES_REGION_NAME = 'us-east-1'
 
 AWS_SES_REGION_ENDPOINT = 'email.us-east-1.amazonaws.com'
+
+# REST Framework Configuration
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework.authentication.TokenAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticated',
+    ),
+}

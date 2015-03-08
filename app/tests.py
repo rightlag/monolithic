@@ -8,8 +8,9 @@ from django.utils.crypto import get_random_string
 class RegisterTestCase(TestCase):
     def setUp(self):
         self.client = Client()
-        self.user = User.objects.create(username='TestUser',
-                                        email='example@domain.com')
+        self.user = User(username='TestUser', email='example@domain.com')
+        self.user.set_password('password')
+        self.user.save()
         code = get_random_string(length=32)
         verification = models.Verification(verification_code=code,
                                            user=self.user)
@@ -18,7 +19,7 @@ class RegisterTestCase(TestCase):
     def test_user_has_auth_token(self):
         """Assert user has `auth_token` attribute after account
         creation."""
-        self.assertTrue(hasattr(self.user, 'auth_token'))
+        self.assertIsNotNone(self.user.auth_token.key)
 
     def test_user_has_verification_token(self):
         """Assert user has `verification` attribute."""
