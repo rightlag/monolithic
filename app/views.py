@@ -73,8 +73,8 @@ def metrics(request, instance_id, format=None):
     """Get metric data for a specific EC2 instance."""
     # need to configure default values for metric data within core module
     conn = boto.ec2.cloudwatch.connect_to_region('us-east-1')
-    start_time = datetime.datetime(2015, 2, 9, 8, 0, 0, 0)
-    end_time = datetime.datetime(2015, 2, 10, 14, 0, 0, 0)
+    end_time = datetime.datetime.now()
+    start_time = end_time - datetime.timedelta(hours=12)
     dimensions = {'InstanceId': instance_id}
     statistics = conn.get_metric_statistics(1800,
                                             start_time,

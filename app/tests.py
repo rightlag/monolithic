@@ -1,6 +1,7 @@
 from app import models
 from app import serializers
 from django.contrib.auth.models import User
+from django.core import mail
 from django.test import Client
 from django.test import TestCase
 from django.utils.crypto import get_random_string
@@ -59,3 +60,14 @@ class ProfileTestCase(TestCase):
             'username': 'TestUser',
         })
         self.assertEqual(response.status_code, 200)
+
+class EmailTest(TestCase):
+    def test_send_email(self):
+        """Assert that mail is sent via SES service."""
+        mail.send_mail('Subject here',
+                       'Here is the message.',
+                       'from@example.com',
+                       ['to@example.com'],
+                       fail_silently=False)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].subject, 'Subject here')
