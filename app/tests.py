@@ -10,10 +10,11 @@ class RegisterTestCase(TestCase):
     def setUp(self):
         self.client = Client()
         self.user = User(username='TestUser', email='example@domain.com')
+        self.user.is_active = False
         self.user.set_password('password')
         self.user.save()
-        code = get_random_string(length=32)
-        verification = models.Verification(verification_code=code,
+        self.code = get_random_string(length=32)
+        verification = models.Verification(verification_code=self.code,
                                            user=self.user)
         verification.save()
 
@@ -26,13 +27,20 @@ class RegisterTestCase(TestCase):
         """Assert user has `verification` attribute."""
         self.assertIsNotNone(self.user.verification)
 
-    def test_registration_email_verification(self):
+    def test_registration_is_successful(self):
         response = self.client.post('/api/v1/users/register/', {
             'username': 'test_user',
             'email': 'rightlag@gmail.com',
             'password': 'test_password',
         })
         self.assertEqual(response.status_code, 201)
+
+    def test_user_account_is_verified(self):
+        """Assert that user verification returns a HTTP 200 OK
+        response."""
+        response = self.client.get('/api/v1/auth/verify/{}/'
+                                   .format(self.code))
+        self.assertEqual(response.status_code, 200)
 
 class ProfileTestCase(TestCase):
     def setUp(self):
