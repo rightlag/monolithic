@@ -117,7 +117,14 @@ def EC2Summary(request):
     response['running'] = len(response['running'])
     response['volumes'] = conn.get_all_volumes()
     response['volumes'] = len(response['volumes'])
-    response['active'] = None
+    response['active'] = conn.get_all_reservations(filters={
+        'instance_state_name': 'running',
+    })
+    response['active'] = len(response['active'])
+    response['retired'] = conn.get_all_reservations(filters={
+        'instance_state_name': 'stopped',
+    })
+    response['retired'] = len(response['retired'])
     return Response(response, status=status.HTTP_200_OK)
 
 class PolicyDetail(APIView):
@@ -176,7 +183,7 @@ class UserViewSet(viewsets.ModelViewSet):
         """
         if request.auth:
             if not request.user.check_password(request.data['current_pass']):
-                return Response(('Password entered does not match current
+                return Response(('Password entered does not match current '
                                  'password'),
                                 status=status.HTTP_400_BAD_REQUEST)
             request.user.set_password(request.data['new_pass'])
