@@ -294,8 +294,6 @@ class KeypairViewSet(viewsets.ModelViewSet):
     serializer_class = serializers.KeypairSerializer
 
     def create(self, request, format=None):
-        import pdb
-        pdb.set_trace()
         access_key = request.data['access_key']
         secret_key = request.data['secret_key']
         conn = (boto
