@@ -1,6 +1,6 @@
+import boto
 import boto.ec2
 import boto.ec2.cloudwatch
-import boto.ec2.connection
 import boto.exception
 import boto.s3
 import boto.ses.exceptions
@@ -46,49 +46,91 @@ class ComplexEncoder(json.JSONEncoder):
             return json.JSONEncoder.default(self, obj)
 
 class ReservationList(APIView):
-    def get(self, request, format=None):
-        conn = boto.ec2.connect_to_region('us-east-1')
+    def post(self, request, format=None):
+        """Get all reservations based on region."""
+        region = request.data['region']
+        conn = boto.ec2.connect_to_region(region)
         reservations = conn.get_all_reservations()
         return JsonResponse(reservations, encoder=ComplexEncoder, safe=False)
 
 class ReservationDetail(APIView):
-    def get(self, request, reservation_id, format=None):
-        conn = boto.ec2.connect_to_region('us-east-1')
+    def post(self, request, reservation_id, format=None):
+        """Get a reservation based on region and instance id."""
+        region = request.data['region']
+        conn = boto.ec2.connect_to_region(region)
         filters = {
             'reservation-id': reservation_id,
         }
-        reservation = conn.get_all_reservations(filters=filters)
-        return JsonResponse(reservation[0].__dict__, encoder=ComplexEncoder)
+        try:
+            reservation = conn.get_all_reservations(filters=filters)[0]
+        except IndexError, e:
+            # The specified reservation does not exist, return a 400 bad
+            # request.
+            return Response(e.message, status=status.HTTP_400_BAD_REQUEST)
+        return JsonResponse(reservation.__dict__, encoder=ComplexEncoder)
 
 class InstanceDetail(APIView):
     def get(self, request, instance_id, format=None):
         """Get an instance based on region and instance id."""
-        conn = boto.ec2.connect_to_region('us-east-1')
+        region = request.data['region']
+        conn = boto.ec2.connect_to_region(region)
         instance_ids = [instance_id,]
-        instance = conn.get_only_instances(instance_ids=instance_ids)
-        return JsonResponse(instance[0].__dict__, encoder=ComplexEncoder)
+        try:
+            instance = conn.get_only_instances(instance_ids=instance_ids)[0]
+        except IndexError, e:
+            # The specified instance does not exist, return a 400 bad
+            # request.
+            return Response(e.message, status=status.HTTP_400_BAD_REQUEST)
+        return JsonResponse(instance.__dict__, encoder=ComplexEncoder)
+
+@decorators.api_view(['GET'])
+def spot_price_history(request, instance_id, format=None):
+    """Calculate the estimated monthly cost for a specific EC2
+    instance."""
+    region = request.data['region']
+    conn = boto.ec2.connect_to_region(region)
+    instance_ids = [instance_id,]
+    try:
+        instance = conn.get_only_instances(instance_ids=instance_ids)[0]
+    except IndexError, e:
+        return Response(e.message, status=status.HTTP_400_BAD_REQUEST)
+    # Based on the current instance, build a dictionary to pass as an
+    # argument to the `get_spot_price_history` method.
+    params = {
+        'availability_zone': instance._placement,
+        'instance_type': instance.instance_type,
+        'product_description': ('Linux/UNIX (Amazon VPC)'
+                                if not instance.platform
+                                else instance.platform),
+    }
+    spot_price_history = conn.get_spot_price_history(**params)
+    monthly_total = sum([instance.price for instance in spot_price_history])
+    return Response(monthly_total, status=status.HTTP_200_OK)
 
 @decorators.api_view(['GET'])
 def metrics(request, instance_id, format=None):
     """Get metric data for a specific EC2 instance."""
-    # need to configure default values for metric data within core module
-    conn = boto.ec2.cloudwatch.connect_to_region('us-east-1')
+    # Need to configure default values for metric data within core
+    # module and handle both GET and POST request methods.
+    region = request.data['region']
+    conn = boto.ec2.cloudwatch.connect_to_region(region)
     end_time = datetime.datetime.now()
     start_time = end_time - datetime.timedelta(hours=12)
-    dimensions = {'InstanceId': instance_id}
+    dimensions = {'InstanceId': instance_id,}
     statistics = conn.get_metric_statistics(1800,
                                             start_time,
                                             end_time,
                                             'CPUUtilization',
                                             'AWS/EC2',
-                                            ['Average'],
+                                            ['Average',],
                                             dimensions=dimensions)
     return Response(statistics, status=status.HTTP_200_OK)
 
 class BucketList(APIView):
-    def get(self, request, format=None):
+    def post(self, request, format=None):
         """Get all buckets based on region."""
-        conn = boto.s3.connect_to_region('us-east-1')
+        region = request.data['region']
+        conn = boto.s3.connect_to_region(region)
         buckets = conn.get_all_buckets()
         return JsonResponse(buckets, encoder=ComplexEncoder, safe=False)
 
@@ -96,11 +138,13 @@ class BucketList(APIView):
 def S3Summary(request):
     """Retrieve total amount of buckets and the total size for all
     buckets."""
-    conn = boto.s3.connect_to_region('us-east-1')
+    region = request.data['region']
+    conn = boto.s3.connect_to_region(region)
     buckets = conn.get_all_buckets()
     size = 0
     for bucket in buckets:
         for key in bucket.get_all_keys():
+            # Increment key size (in bytes).
             size += key.size
     return Response({
         'buckets': len(buckets),
@@ -109,21 +153,28 @@ def S3Summary(request):
 
 @decorators.api_view(['GET'])
 def EC2Summary(request):
-    conn = boto.ec2.connect_to_region('us-east-1')
+    region = request.data['region']
+    conn = boto.ec2.connect_to_region(rergion)
     response = {}
-    response['running'] = conn.get_only_instances(filters={
-        'instance_state_name': 'running',
-    })
+    response['running'] = conn.get_only_instances(
+        filters={
+            'instance_state_name': 'running',
+        }
+    )
     response['running'] = len(response['running'])
     response['volumes'] = conn.get_all_volumes()
     response['volumes'] = len(response['volumes'])
-    response['active'] = conn.get_all_reservations(filters={
-        'instance_state_name': 'running',
-    })
+    response['active'] = conn.get_all_reservations(
+        filters={
+            'instance_state_name': 'running',
+        }
+    )
     response['active'] = len(response['active'])
-    response['retired'] = conn.get_all_reservations(filters={
-        'instance_state_name': 'stopped',
-    })
+    response['retired'] = conn.get_all_reservations(
+        filters={
+            'instance_state_name': 'stopped',
+        }
+    )
     response['retired'] = len(response['retired'])
     return Response(response, status=status.HTTP_200_OK)
 
@@ -131,18 +182,21 @@ class PolicyDetail(APIView):
     pass
 
 class KeyList(APIView):
-    def get(self, request, bucket, format=None):
-        conn = boto.s3.connect_to_region('us-east-1')
+    def post(self, request, bucket, format=None):
+        """Get all keys in a bucket based on region."""
+        region = request.data['region']
+        conn = boto.s3.connect_to_region(region)
         try:
             bucket = conn.get_bucket(bucket)
         except boto.exception.S3ResponseError, e:
-            return Response('Invalid bucket name')
+            return Response(e.message, status=status.HTTP_400_BAD_REQUEST)
         keys = bucket.get_all_keys()
         return JsonResponse(keys, encoder=ComplexEncoder, safe=False)
 
 class KeyDetail(APIView):
-    def get(self, request, bucket, key, format=None):
-        conn = boto.s3.connect_to_region('us-east-1')
+    def get(self, request, region, bucket, key, format=None):
+        region = request.data['region']
+        conn = boto.s3.connect_to_region(region)
         try:
             bucket = conn.get_bucket(bucket)
         except boto.exception.S3ResponseError, e:
@@ -240,6 +294,8 @@ class KeypairViewSet(viewsets.ModelViewSet):
     serializer_class = serializers.KeypairSerializer
 
     def create(self, request, format=None):
+        import pdb
+        pdb.set_trace()
         access_key = request.data['access_key']
         secret_key = request.data['secret_key']
         conn = (boto
