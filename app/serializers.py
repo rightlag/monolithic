@@ -16,7 +16,7 @@ class KeypairSerializer(serializers.ModelSerializer):
     """AWS Access Key and Secret Key serializer."""
     class Meta:
         model = models.Keypair
-        fields = ('id', 'access_key', 'secret_key',)
+        fields = ('id', 'name', 'access_key', 'secret_key',)
 
 class ProfileSerializer(serializers.ModelSerializer):
     keypair_set = KeypairSerializer(many=True, read_only=True)

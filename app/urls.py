@@ -7,22 +7,26 @@ router = routers.DefaultRouter()
 router.register(r'users', views.UserViewSet)
 router.register(r'keypairs', views.KeypairViewSet)
 
+# Separate to another module (e.g. `core.py`)
+BASE_URL_REGION = r'api/v1/(?P<region>\w+(-\w+)+)'
+
 urlpatterns = (
     url(r'api/v1/', include(router.urls)),
-    url(r'api/v1/buckets/$', views.BucketList.as_view()),
-    url(r'api/v1/buckets/(?P<bucket>(.*))/keys/$',
+    url(BASE_URL_REGION + '/buckets/$', views.BucketList.as_view()),
+    url(BASE_URL_REGION + r'/buckets/(?P<bucket>(.*))/keys/$',
         views.KeyList.as_view()),
-    url(r'api/v1/buckets/(?P<bucket>(.*))/keys/(?P<key>(.*))/$',
+    url(BASE_URL_REGION + r'/buckets/(?P<bucket>(.*))/keys/(?P<key>(.*))/$',
         views.KeyDetail.as_view()),
-    url(r'api/v1/summary/s3/$', views.S3Summary),
-    url(r'api/v1/summary/ec2/$', views.EC2Summary),
-    url(r'api/v1/reservations/$', views.ReservationList.as_view()),
-    url(r'api/v1/reservations/(?P<reservation_id>(.*))/$',
+    url(BASE_URL_REGION + '/summary/s3/$', views.S3Summary),
+    url(BASE_URL_REGION + '/summary/ec2/$', views.EC2Summary),
+    url(BASE_URL_REGION + '/reservations/$', views.ReservationList.as_view()),
+    url(BASE_URL_REGION + r'/reservations/(?P<reservation_id>(.*))/$',
         views.ReservationDetail.as_view()),
-    url(r'api/v1/instances/(?P<instance_id>(.*))/$',
+    url(BASE_URL_REGION + r'/instances/(?P<instance_id>(.*))/$',
         views.InstanceDetail.as_view()),
-    url(r'api/v1/pricing/(?P<instance_id>(.*))/$', views.spot_price_history),
-    url(r'api/v1/metrics/(?P<instance_id>(.*))/$', views.metrics),
+    url(BASE_URL_REGION + r'/pricing/(?P<instance_id>(.*))/$',
+        views.spot_price_history),
+    url(BASE_URL_REGION + r'/metrics/(?P<instance_id>(.*))/$', views.metrics),
     url(r'api/v1/auth/$', auth_token.obtain_auth_token),
     url(r'api/v1/auth/verify/(?P<verification_code>(.*))/$', views.verify),
     url(r'api/v1/auth/access/$', views.access),

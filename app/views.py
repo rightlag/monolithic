@@ -46,17 +46,15 @@ class ComplexEncoder(json.JSONEncoder):
             return json.JSONEncoder.default(self, obj)
 
 class ReservationList(APIView):
-    def post(self, request, format=None):
+    def get(self, request, region, format=None):
         """Get all reservations based on region."""
-        region = request.data['region']
         conn = boto.ec2.connect_to_region(region)
         reservations = conn.get_all_reservations()
         return JsonResponse(reservations, encoder=ComplexEncoder, safe=False)
 
 class ReservationDetail(APIView):
-    def post(self, request, reservation_id, format=None):
+    def get(self, request, region, reservation_id, format=None):
         """Get a reservation based on region and instance id."""
-        region = request.data['region']
         conn = boto.ec2.connect_to_region(region)
         filters = {
             'reservation-id': reservation_id,
@@ -70,9 +68,8 @@ class ReservationDetail(APIView):
         return JsonResponse(reservation.__dict__, encoder=ComplexEncoder)
 
 class InstanceDetail(APIView):
-    def get(self, request, instance_id, format=None):
+    def get(self, request, region, instance_id, format=None):
         """Get an instance based on region and instance id."""
-        region = request.data['region']
         conn = boto.ec2.connect_to_region(region)
         instance_ids = [instance_id,]
         try:
@@ -84,10 +81,9 @@ class InstanceDetail(APIView):
         return JsonResponse(instance.__dict__, encoder=ComplexEncoder)
 
 @decorators.api_view(['GET'])
-def spot_price_history(request, instance_id, format=None):
+def spot_price_history(request, region, instance_id, format=None):
     """Calculate the estimated monthly cost for a specific EC2
     instance."""
-    region = request.data['region']
     conn = boto.ec2.connect_to_region(region)
     instance_ids = [instance_id,]
     try:
@@ -108,11 +104,10 @@ def spot_price_history(request, instance_id, format=None):
     return Response(monthly_total, status=status.HTTP_200_OK)
 
 @decorators.api_view(['GET'])
-def metrics(request, instance_id, format=None):
+def metrics(request, region, instance_id, format=None):
     """Get metric data for a specific EC2 instance."""
     # Need to configure default values for metric data within core
     # module and handle both GET and POST request methods.
-    region = request.data['region']
     conn = boto.ec2.cloudwatch.connect_to_region(region)
     end_time = datetime.datetime.now()
     start_time = end_time - datetime.timedelta(hours=12)
@@ -127,18 +122,16 @@ def metrics(request, instance_id, format=None):
     return Response(statistics, status=status.HTTP_200_OK)
 
 class BucketList(APIView):
-    def post(self, request, format=None):
+    def get(self, request, region, format=None):
         """Get all buckets based on region."""
-        region = request.data['region']
         conn = boto.s3.connect_to_region(region)
         buckets = conn.get_all_buckets()
         return JsonResponse(buckets, encoder=ComplexEncoder, safe=False)
 
 @decorators.api_view(['GET'])
-def S3Summary(request):
+def S3Summary(request, region):
     """Retrieve total amount of buckets and the total size for all
     buckets."""
-    region = request.data['region']
     conn = boto.s3.connect_to_region(region)
     buckets = conn.get_all_buckets()
     size = 0
@@ -152,9 +145,8 @@ def S3Summary(request):
     }, status=status.HTTP_200_OK)
 
 @decorators.api_view(['GET'])
-def EC2Summary(request):
-    region = request.data['region']
-    conn = boto.ec2.connect_to_region(rergion)
+def EC2Summary(request, region):
+    conn = boto.ec2.connect_to_region(region)
     response = {}
     response['running'] = conn.get_only_instances(
         filters={
@@ -182,9 +174,8 @@ class PolicyDetail(APIView):
     pass
 
 class KeyList(APIView):
-    def post(self, request, bucket, format=None):
+    def get(self, request, region, bucket, format=None):
         """Get all keys in a bucket based on region."""
-        region = request.data['region']
         conn = boto.s3.connect_to_region(region)
         try:
             bucket = conn.get_bucket(bucket)
@@ -195,7 +186,6 @@ class KeyList(APIView):
 
 class KeyDetail(APIView):
     def get(self, request, region, bucket, key, format=None):
-        region = request.data['region']
         conn = boto.s3.connect_to_region(region)
         try:
             bucket = conn.get_bucket(bucket)
@@ -278,6 +268,8 @@ class UserViewSet(viewsets.ModelViewSet):
         PUT:
           Used to update existing user object.
         """
+        import pdb
+        pdb.set_trace()
         if request.method == 'GET':
             context = {'request': request,}
             serializer = serializers.ProfileSerializer(request.user,
