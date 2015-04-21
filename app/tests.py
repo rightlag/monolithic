@@ -69,6 +69,9 @@ class ProfileTestCase(TestCase):
         })
         self.assertEqual(response.status_code, 200)
 
+    def test_user_has_valid_access_and_secret_keys(self):
+        pass
+
 class EmailTest(TestCase):
     def test_send_email(self):
         """Assert that mail is sent via SES service."""
