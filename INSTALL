@@ -1,0 +1,3 @@
+Any requirements that install locally with the following command will behave as expected on Monolithic
+
+pip install -r requirements.txt

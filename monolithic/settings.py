@@ -39,6 +39,7 @@ INSTALLED_APPS = (
     'rest_framework',
     'rest_framework.authtoken',
     'corsheaders',
+    'django_ses',
     'app',
 )
 
@@ -88,4 +89,24 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 
+# Cross-Origin Resource Sharing Configuration
 CORS_ORIGIN_ALLOW_ALL = True
+
+# Amazon SES SMTP Configuration
+# Access key and secret key should be specified as environment variables
+# in ~/.boto file.
+EMAIL_BACKEND = 'django_ses.SESBackend'
+
+AWS_SES_REGION_NAME = 'us-east-1'
+
+AWS_SES_REGION_ENDPOINT = 'email.us-east-1.amazonaws.com'
+
+# REST Framework Configuration
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework.authentication.TokenAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticated',
+    ),
+}
