@@ -5,7 +5,6 @@ import boto.exception
 import boto.s3
 import boto.ses.exceptions
 import datetime
-import json
 
 from app import email
 from app import helpers
@@ -23,36 +22,14 @@ from rest_framework import viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-class ComplexEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if hasattr(obj, '__dict__'):
-            data = {}
-            for key, val in obj.__dict__.iteritems():
-                if hasattr(val, '__dict__'):
-                    # To avoid circular references
-                    continue
-                elif isinstance(val, list) or isinstance(val, tuple):
-                    elements = []
-                    for element in val:
-                        if hasattr(element, '__name__'):
-                            # If element is a class reference
-                            elements.append(element.__name__)
-                        else:
-                            elements.append(element)
-                    data[key] = elements
-                else:
-                    data[key] = val
-            return data
-        else:
-            return json.JSONEncoder.default(self, obj)
-
 class ReservationList(APIView):
     @helpers.validate_region
     def get(self, request, region, format=None):
         """Get all reservations based on region."""
         conn = boto.ec2.connect_to_region(region)
         reservations = conn.get_all_reservations()
-        return JsonResponse(reservations, encoder=ComplexEncoder, safe=False)
+        return JsonResponse(reservations, encoder=serializers.ComplexEncoder,
+                            safe=False)
 
 class ReservationDetail(APIView):
     @helpers.validate_region
@@ -68,7 +45,8 @@ class ReservationDetail(APIView):
             # The specified reservation does not exist, return a 400 bad
             # request.
             return Response(e.message, status=status.HTTP_400_BAD_REQUEST)
-        return JsonResponse(reservation.__dict__, encoder=ComplexEncoder)
+        return JsonResponse(reservation.__dict__,
+                            encoder=serializers.ComplexEncoder)
 
 class InstanceDetail(APIView):
     @helpers.validate_region
@@ -82,7 +60,8 @@ class InstanceDetail(APIView):
             # The specified instance does not exist, return a 400 bad
             # request.
             return Response(e.message, status=status.HTTP_400_BAD_REQUEST)
-        return JsonResponse(instance.__dict__, encoder=ComplexEncoder)
+        return JsonResponse(instance.__dict__,
+                            encoder=serializers.ComplexEncoder)
 
 @decorators.api_view(['GET'])
 @helpers.validate_region
@@ -108,32 +87,74 @@ def spot_price_history(request, region, instance_id, format=None):
     monthly_total = sum([instance.price for instance in spot_price_history])
     return Response(monthly_total, status=status.HTTP_200_OK)
 
-@decorators.api_view(['GET'])
+@decorators.api_view(['GET', 'POST'])
 @helpers.validate_region
 def metrics(request, region, instance_id, format=None):
-    """Get metric data for a specific EC2 instance."""
-    # Need to configure default values for metric data within core
-    # module and handle both GET and POST request methods.
+    """Get metric data for a specific EC2 instance.
+
+    GET:
+      Takes the current time and subtracts 12 hours to statically
+        generate EC2 metric data over the past 12 hours.
+
+    POST:
+      Takes the `start_time` and `end_time` parameters to dynamically
+        generate EC2 metric data.
+
+    Returns:
+      HTTP_200_OK: If the specified parameters return a list of EC2
+        metric points.
+
+      HTTP_400_BAD_REQUEST: If the `start_time` and `end_time`
+        parameters do not match the `%m/%d/%Y %H:%M %p` format, or if
+          the `start_time` parameter is greater than the `end_time`
+          parameter.
+    """
     conn = boto.ec2.cloudwatch.connect_to_region(region)
-    end_time = datetime.datetime.now()
-    start_time = end_time - datetime.timedelta(hours=12)
+    if request.method == 'GET':
+        end_time = datetime.datetime.now()
+        start_time = end_time - datetime.timedelta(hours=12)
+    elif request.method == 'POST':
+        fmt = '%m/%d/%Y %H:%M %p'
+        try:
+            end_time = datetime.datetime.strptime(
+                request.data.get('end_time'),
+                fmt
+            )
+            start_time = datetime.datetime.strptime(
+                request.data.get('start_time'),
+                fmt
+            )
+        except ValueError, e:
+            return Response(e.message, status=status.HTTP_400_BAD_REQUEST)
     dimensions = {'InstanceId': instance_id,}
-    statistics = conn.get_metric_statistics(1800,
-                                            start_time,
-                                            end_time,
-                                            'CPUUtilization',
-                                            'AWS/EC2',
-                                            ['Average',],
-                                            dimensions=dimensions)
+    try:
+        statistics = conn.get_metric_statistics(1800,
+                                                start_time,
+                                                end_time,
+                                                'CPUUtilization',
+                                                'AWS/EC2',
+                                                ['Average',],
+                                                dimensions=dimensions)
+    except boto.exception.BotoServerError, e:
+        return Response(e.message, status=e.status)
     return Response(statistics, status=status.HTTP_200_OK)
 
 class BucketList(APIView):
     @helpers.validate_region
     def get(self, request, region, format=None):
-        """Get all buckets based on region."""
+        """Get all buckets and their sizes based on region."""
         conn = boto.s3.connect_to_region(region)
         buckets = conn.get_all_buckets()
-        return JsonResponse(buckets, encoder=ComplexEncoder, safe=False)
+        elems = []
+        for bucket in buckets:
+            size = 0.0
+            for key in bucket.get_all_keys():
+                size += key.size
+            elems.append({
+                'name': bucket.name,
+                'size': size,
+            })
+        return Response(elems, status=status.HTTP_200_OK)
 
 @decorators.api_view(['GET'])
 @helpers.validate_region
@@ -142,11 +163,10 @@ def S3Summary(request, region):
     buckets."""
     conn = boto.s3.connect_to_region(region)
     buckets = conn.get_all_buckets()
-    size = 0
-    for bucket in buckets:
-        for key in bucket.get_all_keys():
-            # Increment key size (in bytes).
-            size += key.size
+    size = [[key.size for key in bucket.get_all_keys()]
+             for bucket in buckets]
+    # Flatten the list object and calculate the sum of the key sizes.
+    size = float(sum(itertools.chain(*size)))
     return Response({
         'buckets': len(buckets),
         'size': size,
@@ -190,9 +210,10 @@ class KeyList(APIView):
         try:
             bucket = conn.get_bucket(bucket)
         except boto.exception.S3ResponseError, e:
-            return Response(e.message, status=status.HTTP_400_BAD_REQUEST)
+            return Response(e.message, status=e.status)
         keys = bucket.get_all_keys()
-        return JsonResponse(keys, encoder=ComplexEncoder, safe=False)
+        return JsonResponse(keys, encoder=serializers.ComplexEncoder,
+                            safe=False)
 
 class KeyDetail(APIView):
     @helpers.validate_region
@@ -203,7 +224,7 @@ class KeyDetail(APIView):
         except boto.exception.S3ResponseError, e:
             return Response(e.message, status=e.status)
         key = bucket.get_key(key)
-        return JsonResponse(key.__dict__, encoder=ComplexEncoder)
+        return JsonResponse(key.__dict__, encoder=serializers.ComplexEncoder)
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
