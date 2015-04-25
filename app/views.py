@@ -129,7 +129,7 @@ def metrics(request, region, instance_id, format=None):
             return Response(e.message, status=status.HTTP_400_BAD_REQUEST)
     dimensions = {'InstanceId': instance_id,}
     try:
-        statistics = conn.get_metric_statistics(1800,
+        statistics = conn.get_metric_statistics(3600,
                                                 start_time,
                                                 end_time,
                                                 'CPUUtilization',
@@ -199,7 +199,12 @@ def EC2Summary(request, region):
     return Response(response, status=status.HTTP_200_OK)
 
 class PolicyDetail(APIView):
-    pass
+    def get(self, request, format=None):
+        policies = request.user.policy_set.all()
+        return Response(policies, status=status.HTTP_200_OK)
+
+    def post(self, request, format=None):
+        pass
 
 class KeyList(APIView):
     @helpers.validate_region
@@ -211,7 +216,11 @@ class KeyList(APIView):
         except boto.exception.S3ResponseError, e:
             return Response(e.message, status=e.status)
         keys = bucket.get_all_keys()
-        return JsonResponse(keys, encoder=serializers.ComplexEncoder,
+        response = {
+            'name': bucket.name,
+            'keys': keys,
+        }
+        return JsonResponse(response, encoder=serializers.ComplexEncoder,
                             safe=False)
 
 class KeyDetail(APIView):

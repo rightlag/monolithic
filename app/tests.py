@@ -108,7 +108,7 @@ class MetricTestCase(APITestCase):
             HTTP_AUTHORIZATION='Token ' + self.user.auth_token.key
         )
         try:
-            self.instance = self.conn.get_only_instances()[0].id
+            self.instance = self.conn.get_only_instances()[0]
         except IndexError, e:
             raise e
 
@@ -122,7 +122,7 @@ class MetricTestCase(APITestCase):
         start_time = start_time.strftime(self.fmt)
         response = self.client.post(
             '/api/v1/{}/metrics/{}/'.format(core.DEFAULT_AWS_REGION,
-                                           self.instance), {
+                                            self.instance.id), {
                 'start_time': start_time,
                 'end_time': end_time,
             }
