@@ -1,3 +1,7 @@
+import boto.ec2
+import core
+import datetime
+
 from app import models
 from app import serializers
 from django.contrib.auth.models import User
@@ -5,6 +9,9 @@ from django.core import mail
 from django.test import Client
 from django.test import TestCase
 from django.utils.crypto import get_random_string
+from rest_framework.authtoken.models import Token
+from rest_framework.test import APIClient
+from rest_framework.test import APITestCase
 
 class RegisterTestCase(TestCase):
     def setUp(self):
@@ -82,3 +89,42 @@ class EmailTest(TestCase):
                        fail_silently=False)
         self.assertEqual(len(mail.outbox), 1)
         self.assertEqual(mail.outbox[0].subject, 'Subject here')
+
+class MetricTestCase(APITestCase):
+    def setUp(self):
+        """Test class for testing EC2 Metric data responses.
+
+        These requests require an authentication token. Therefore, the
+        `HTTP_AUTHORIZATION` key must be passed as an argument to the
+        `APIClient`. This ensures that the Authorization header exists
+        in the HTTP request."""
+        self.client = APIClient()
+        self.conn = boto.ec2.connect_to_region(core.DEFAULT_AWS_REGION)
+        self.fmt = '%m/%d/%Y %H:%M %p'
+        self.user = User.objects.create_user(username='TestUser',
+                                             email='example@domain.com',
+                                             password='password')
+        self.client.credentials(
+            HTTP_AUTHORIZATION='Token ' + self.user.auth_token.key
+        )
+        try:
+            self.instance = self.conn.get_only_instances()[0].id
+        except IndexError, e:
+            raise e
+
+    def test_response_if_start_time_is_greater_than_end_time(self):
+        """Assert user can not make a request to the EC2 metric data
+        endpoint with the `start_time` parameter being greater than
+        the `end_time` parameter."""
+        end_time = datetime.datetime.now()
+        start_time = end_time + datetime.timedelta(days=1)
+        end_time = end_time.strftime(self.fmt)
+        start_time = start_time.strftime(self.fmt)
+        response = self.client.post(
+            '/api/v1/{}/metrics/{}/'.format(core.DEFAULT_AWS_REGION,
+                                           self.instance), {
+                'start_time': start_time,
+                'end_time': end_time,
+            }
+        )
+        self.assertEqual(response.status_code, 400)

@@ -5,6 +5,7 @@ import boto.exception
 import boto.s3
 import boto.ses.exceptions
 import datetime
+import itertools
 
 from app import email
 from app import helpers
@@ -149,6 +150,7 @@ class BucketList(APIView):
             size = 0.0
             for key in bucket.get_all_keys():
                 size += key.size
+            # Add `size` key to bucket dictionary.
             buckets[i].__dict__['size'] = size
         return JsonResponse(buckets, encoder=serializers.ComplexEncoder,
                             safe=False)
