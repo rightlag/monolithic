@@ -145,16 +145,13 @@ class BucketList(APIView):
         """Get all buckets and their sizes based on region."""
         conn = boto.s3.connect_to_region(region)
         buckets = conn.get_all_buckets()
-        elems = []
-        for bucket in buckets:
+        for i, bucket in enumerate(buckets):
             size = 0.0
             for key in bucket.get_all_keys():
                 size += key.size
-            elems.append({
-                'name': bucket.name,
-                'size': size,
-            })
-        return Response(elems, status=status.HTTP_200_OK)
+            buckets[i].__dict__['size'] = size
+        return JsonResponse(buckets, encoder=serializers.ComplexEncoder,
+                            safe=False)
 
 @decorators.api_view(['GET'])
 @helpers.validate_region
