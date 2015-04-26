@@ -155,6 +155,21 @@ class BucketList(APIView):
         return JsonResponse(buckets, encoder=serializers.ComplexEncoder,
                             safe=False)
 
+class BucketDetail(APIView):
+    @helpers.validate_region
+    def get(self, request, region, bucket, format=None):
+        """Get a bucket based on region and bucket name."""
+        conn = boto.s3.connect_to_region(region)
+        try:
+            bucket = conn.get_bucket(bucket)
+        except boto.exception.S3ResponseError, e:
+            return Response(e.message, status=e.status)
+        return JsonResponse({
+            'name': bucket.name,
+            'keys': bucket.get_all_keys(),
+            'policy': bucket.get_policy(),
+        }, encoder=serializers.ComplexEncoder)
+
 @decorators.api_view(['GET'])
 @helpers.validate_region
 def S3Summary(request, region):
@@ -205,34 +220,6 @@ class PolicyDetail(APIView):
 
     def post(self, request, format=None):
         pass
-
-class KeyList(APIView):
-    @helpers.validate_region
-    def get(self, request, region, bucket, format=None):
-        """Get all keys in a bucket based on region."""
-        conn = boto.s3.connect_to_region(region)
-        try:
-            bucket = conn.get_bucket(bucket)
-        except boto.exception.S3ResponseError, e:
-            return Response(e.message, status=e.status)
-        keys = bucket.get_all_keys()
-        response = {
-            'name': bucket.name,
-            'keys': keys,
-        }
-        return JsonResponse(response, encoder=serializers.ComplexEncoder,
-                            safe=False)
-
-class KeyDetail(APIView):
-    @helpers.validate_region
-    def get(self, request, region, bucket, key, format=None):
-        conn = boto.s3.connect_to_region(region)
-        try:
-            bucket = conn.get_bucket(bucket)
-        except boto.exception.S3ResponseError, e:
-            return Response(e.message, status=e.status)
-        key = bucket.get_key(key)
-        return JsonResponse(key.__dict__, encoder=serializers.ComplexEncoder)
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()

@@ -13,10 +13,8 @@ BASE_URL_REGION = r'api/v1/(?P<region>\w+(-\w+)+)'
 urlpatterns = (
     url(r'api/v1/', include(router.urls)),
     url(BASE_URL_REGION + '/buckets/$', views.BucketList.as_view()),
-    url(BASE_URL_REGION + r'/buckets/(?P<bucket>(.*))/keys/$',
-        views.KeyList.as_view()),
-    url(BASE_URL_REGION + r'/buckets/(?P<bucket>(.*))/keys/(?P<key>(.*))/$',
-        views.KeyDetail.as_view()),
+    url(BASE_URL_REGION + r'/buckets/(?P<bucket>(.*))/$',
+        views.BucketDetail.as_view()),
     url(BASE_URL_REGION + '/summary/s3/$', views.S3Summary),
     url(BASE_URL_REGION + '/summary/ec2/$', views.EC2Summary),
     url(BASE_URL_REGION + '/reservations/$', views.ReservationList.as_view()),
