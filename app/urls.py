@@ -6,6 +6,7 @@ from app import views
 router = routers.DefaultRouter()
 router.register(r'users', views.UserViewSet)
 router.register(r'keypairs', views.KeypairViewSet)
+router.register(r'policies', views.PolicyViewSet)
 
 # Separate to another module (e.g. `core.py`)
 BASE_URL_REGION = r'api/v1/(?P<region>\w+(-\w+)+)'
@@ -28,5 +29,4 @@ urlpatterns = (
     url(r'api/v1/auth/$', auth_token.obtain_auth_token),
     url(r'api/v1/auth/verify/(?P<verification_code>(.*))/$', views.verify),
     url(r'api/v1/auth/access/$', views.access),
-    url(r'api/v1/policies/$', views.PolicyDetail.as_view())
 )

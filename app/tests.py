@@ -113,9 +113,9 @@ class MetricTestCase(APITestCase):
             raise e
 
     def test_response_if_start_time_is_greater_than_end_time(self):
-        """Assert user can not make a request to the EC2 metric data
-        endpoint with the `start_time` parameter being greater than
-        the `end_time` parameter."""
+        """(Deprecated) Assert user can not make a request to the EC2
+        metric data endpoint with the `start_time` parameter being
+        greater than the `end_time` parameter."""
         end_time = datetime.datetime.now()
         start_time = end_time + datetime.timedelta(days=1)
         end_time = end_time.strftime(self.fmt)

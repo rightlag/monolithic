@@ -1,8 +1,12 @@
+import boto.exception
+import boto.s3
 import json
 
+from app import helpers
 from app import models
 from django.contrib.auth.models import User
 from django.core.mail import send_mail
+from django.utils import timezone
 from django.utils.crypto import get_random_string
 from rest_framework import serializers
 
@@ -15,6 +19,9 @@ class ComplexEncoder(json.JSONEncoder):
                 if hasattr(val, '__dict__'):
                     # To avoid circular references
                     continue
+                elif hasattr(val, 'isoformat'):
+                    # For date/datetime objects
+                    data[key] = val.isoformat()
                 elif isinstance(val, list) or isinstance(val, tuple):
                     elements = []
                     for element in val:
@@ -85,3 +92,29 @@ class PasswordSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ('username',)
+
+class PolicyListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = models.Policy
+        fields = ('created', 'policy',)
+
+class PolicySerializer(serializers.ModelSerializer):
+    region = serializers.CharField()
+    bucket = serializers.CharField()
+    class Meta:
+        model = models.Policy
+        fields = ('region', 'bucket',)
+
+    def create(self, validated_data):
+        conn = boto.s3.connect_to_region(validated_data['region'])
+        try:
+            bucket = conn.get_bucket(validated_data['bucket'])
+        except boto.exception.S3ResponseError, e:
+            raise e
+        data = {
+            'created': timezone.now(),
+            'policy': bucket.get_policy(),
+        }
+        policy = models.Policy(**data)
+        policy.save()
+        return policy

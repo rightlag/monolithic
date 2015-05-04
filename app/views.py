@@ -97,10 +97,6 @@ def metrics(request, region, instance_id, format=None):
       Takes the current time and subtracts 12 hours to statically
         generate EC2 metric data over the past 12 hours.
 
-    POST:
-      Takes the `start_time` and `end_time` parameters to dynamically
-        generate EC2 metric data.
-
     Returns:
       HTTP_200_OK: If the specified parameters return a list of EC2
         metric points.
@@ -111,23 +107,11 @@ def metrics(request, region, instance_id, format=None):
           parameter.
     """
     conn = boto.ec2.cloudwatch.connect_to_region(region)
-    if request.method == 'GET':
-        end_time = datetime.datetime.now()
-        start_time = end_time - datetime.timedelta(hours=12)
-    elif request.method == 'POST':
-        fmt = '%m/%d/%Y %H:%M %p'
-        try:
-            end_time = datetime.datetime.strptime(
-                request.data.get('end_time'),
-                fmt
-            )
-            start_time = datetime.datetime.strptime(
-                request.data.get('start_time'),
-                fmt
-            )
-        except ValueError, e:
-            return Response(e.message, status=status.HTTP_400_BAD_REQUEST)
-    dimensions = {'InstanceId': instance_id,}
+    end_time = datetime.datetime.now()
+    start_time = end_time - datetime.timedelta(hours=12)
+    dimensions = {
+        'InstanceId': instance_id,
+    }
     try:
         statistics = conn.get_metric_statistics(3600,
                                                 start_time,
@@ -178,7 +162,7 @@ def S3Summary(request, region):
     conn = boto.s3.connect_to_region(region)
     buckets = conn.get_all_buckets()
     size = [[key.size for key in bucket.get_all_keys()]
-             for bucket in buckets]
+            for bucket in buckets]
     # Flatten the list object and calculate the sum of the key sizes.
     size = float(sum(itertools.chain(*size)))
     return Response({
@@ -213,13 +197,16 @@ def EC2Summary(request, region):
     response['retired'] = len(response['retired'])
     return Response(response, status=status.HTTP_200_OK)
 
-class PolicyDetail(APIView):
-    def get(self, request, format=None):
-        policies = request.user.policy_set.all()
-        return Response(policies, status=status.HTTP_200_OK)
+class PolicyViewSet(viewsets.ModelViewSet):
+    queryset = models.Policy.objects.all()
+    serializer_class = serializers.PolicyListSerializer
 
-    def post(self, request, format=None):
-        pass
+    def create(self, request, format=None):
+        serializer = serializers.PolicySerializer(data=request.data)
+        if serializer.is_valid(raise_exception=True):
+            policy = serializer.create(serializer.data)
+            request.user.policy_set.add(policy)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
@@ -266,7 +253,9 @@ class UserViewSet(viewsets.ModelViewSet):
             return Response('Password has been reset successfully',
                             status=status.HTTP_200_OK)
         else:
-            context = {'request': request,}
+            context = {
+                'request': request,
+            }
             serializer = serializers.PasswordSerializer(request.data,
                                                         context=context)
             try:
@@ -305,7 +294,9 @@ class UserViewSet(viewsets.ModelViewSet):
             respectively.
         """
         if request.method == 'GET':
-            context = {'request': request,}
+            context = {
+                'request': request,
+            }
             serializer = serializers.ProfileSerializer(request.user,
                                                        context=context)
             return Response(serializer.data, status=status.HTTP_200_OK)
