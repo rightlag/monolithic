@@ -144,12 +144,16 @@ class BucketDetail(APIView):
         conn = boto.s3.connect_to_region(region)
         try:
             bucket = conn.get_bucket(bucket)
+            try:
+                policy = bucket.get_policy()
+            except boto.exception.S3ResponseError, e:
+                policy = None
         except boto.exception.S3ResponseError, e:
             return Response(e.message, status=e.status)
         return JsonResponse({
             'name': bucket.name,
             'keys': bucket.get_all_keys(),
-            'policy': bucket.get_policy(),
+            'policy': policy,
         }, encoder=serializers.ComplexEncoder)
 
 @decorators.api_view(['GET'])
@@ -200,11 +204,15 @@ class PolicyViewSet(viewsets.ModelViewSet):
     serializer_class = serializers.PolicyListSerializer
 
     def create(self, request, format=None):
+        """Save a S3 bucket policy."""
         conn = boto.s3.connect_to_region(request.data.get('region'))
         try:
             # Before creating the serializer instance, ensure the bucket
             # exists.
             bucket = conn.get_bucket(request.data.get('bucket'))
+            # Attempt to get the bucket policy. If it does not exist,
+            # prevent the user from saving the policy.
+            bucket.get_policy()
         except boto.exception.S3ResponseError, e:
             return Response(e.message, status=e.status)
         serializer = serializers.PolicySerializer(data=request.data)
@@ -212,6 +220,24 @@ class PolicyViewSet(viewsets.ModelViewSet):
             policy = serializer.create(serializer.data)
             request.user.policy_set.add(policy)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def update(self, request, pk=None, format=None):
+        """Update a S3 bucket policy.
+        By default, the only value being updated is the `ignore` flag.
+        """
+        conn = boto.s3.connect_to_region(request.data.get('region'))
+        try:
+            policy = models.Policy.objects.get(pk=pk)
+        except exceptions.ObjectDoesNotExist, e:
+            return Response(e.message, status=status.HTTP_404_NOT_FOUND)
+        try:
+            bucket = conn.get_bucket(request.data.get('bucket'))
+        except boto.exception.S3ResponseError, e:
+            return Response(e.message, status=e.status)
+        serializer = serializers.PolicySerializer(data=request.data)
+        if serializer.is_valid(raise_exception=True):
+            policy = serializer.update(policy, serializer.data)
+            return Response(serializer.data, status=status.HTTP_200_OK)
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()

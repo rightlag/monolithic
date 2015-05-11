@@ -103,7 +103,7 @@ class PolicySerializer(serializers.ModelSerializer):
     bucket = serializers.CharField()
     class Meta:
         model = models.Policy
-        fields = ('region', 'bucket',)
+        fields = ('region', 'bucket', 'ignore',)
 
     def create(self, validated_data):
         conn = boto.s3.connect_to_region(validated_data.get('region'))
@@ -112,6 +112,7 @@ class PolicySerializer(serializers.ModelSerializer):
             # the `QueryDict` object has proven to be immutable.
             # Therefore, this try/except block will suffice for now.
             bucket = conn.get_bucket(validated_data.get('bucket'))
+            policy = bucket.get_policy()
         except boto.exception.S3ResponseError, e:
             # Will never be handled since it is handled in the view.
             raise e
@@ -122,3 +123,10 @@ class PolicySerializer(serializers.ModelSerializer):
         policy = models.Policy(**data)
         policy.save()
         return policy
+
+    def update(self, instance, validated_data):
+        instance.created = validated_data.get('created', instance.created)
+        instance.policy = validated_data.get('policy', instance.policy)
+        instance.ignore = validated_data.get('ignore', instance.ignore)
+        instance.save()
+        return instance
