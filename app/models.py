@@ -24,7 +24,7 @@ class Keypair(models.Model):
         return self.access_key
 
 class Policy(models.Model):
-    created = models.DateTimeField()
+    created = models.DateTimeField(auto_now_add=True)
     policy = models.TextField()
     ignore = models.BooleanField(default=False)
     user = models.ManyToManyField(User)

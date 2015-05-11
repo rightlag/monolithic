@@ -201,7 +201,7 @@ def EC2Summary(request, region):
 
 class PolicyViewSet(viewsets.ModelViewSet):
     queryset = models.Policy.objects.all()
-    serializer_class = serializers.PolicyListSerializer
+    serializer_class = serializers.PolicySerializer
 
     def create(self, request, format=None):
         """Save a S3 bucket policy."""
@@ -225,18 +225,13 @@ class PolicyViewSet(viewsets.ModelViewSet):
         """Update a S3 bucket policy.
         By default, the only value being updated is the `ignore` flag.
         """
-        conn = boto.s3.connect_to_region(request.data.get('region'))
         try:
             policy = models.Policy.objects.get(pk=pk)
         except exceptions.ObjectDoesNotExist, e:
             return Response(e.message, status=status.HTTP_404_NOT_FOUND)
-        try:
-            bucket = conn.get_bucket(request.data.get('bucket'))
-        except boto.exception.S3ResponseError, e:
-            return Response(e.message, status=e.status)
         serializer = serializers.PolicySerializer(data=request.data)
         if serializer.is_valid(raise_exception=True):
-            policy = serializer.update(policy, serializer.data)
+            serializer.update(policy, serializer.data)
             return Response(serializer.data, status=status.HTTP_200_OK)
 
 class UserViewSet(viewsets.ModelViewSet):

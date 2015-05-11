@@ -93,17 +93,14 @@ class PasswordSerializer(serializers.ModelSerializer):
         model = User
         fields = ('username',)
 
-class PolicyListSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = models.Policy
-        fields = ('id', 'created', 'ignore', 'policy',)
-
 class PolicySerializer(serializers.ModelSerializer):
-    region = serializers.CharField()
-    bucket = serializers.CharField()
+    region = serializers.CharField(required=False, allow_blank=True)
+    bucket = serializers.CharField(required=False, allow_blank=True)
+    policy = serializers.CharField(required=False, allow_blank=True)
+
     class Meta:
         model = models.Policy
-        fields = ('region', 'bucket', 'ignore',)
+        fields = ('region', 'bucket', 'id', 'created', 'ignore', 'policy',)
 
     def create(self, validated_data):
         conn = boto.s3.connect_to_region(validated_data.get('region'))
