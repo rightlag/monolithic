@@ -26,6 +26,7 @@ class Keypair(models.Model):
 class Policy(models.Model):
     created = models.DateTimeField()
     policy = models.TextField()
+    ignore = models.BooleanField(default=False)
     user = models.ManyToManyField(User)
 
 class Verification(models.Model):

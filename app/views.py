@@ -130,10 +130,8 @@ class BucketList(APIView):
         """Get all buckets and their sizes based on region."""
         conn = boto.s3.connect_to_region(region)
         buckets = conn.get_all_buckets()
-        for i, bucket in enumerate(buckets):
-            size = 0.0
-            for key in bucket.get_all_keys():
-                size += key.size
+        for i in xrange(len(buckets)):
+            size = sum([key.size for key in buckets[i].get_all_keys()])
             # Add `size` key to bucket dictionary.
             buckets[i].__dict__['size'] = size
         return JsonResponse(buckets, encoder=serializers.ComplexEncoder,
@@ -202,6 +200,13 @@ class PolicyViewSet(viewsets.ModelViewSet):
     serializer_class = serializers.PolicyListSerializer
 
     def create(self, request, format=None):
+        conn = boto.s3.connect_to_region(request.data.get('region'))
+        try:
+            # Before creating the serializer instance, ensure the bucket
+            # exists.
+            bucket = conn.get_bucket(request.data.get('bucket'))
+        except boto.exception.S3ResponseError, e:
+            return Response(e.message, status=e.status)
         serializer = serializers.PolicySerializer(data=request.data)
         if serializer.is_valid(raise_exception=True):
             policy = serializer.create(serializer.data)

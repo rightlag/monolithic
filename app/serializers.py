@@ -96,7 +96,7 @@ class PasswordSerializer(serializers.ModelSerializer):
 class PolicyListSerializer(serializers.ModelSerializer):
     class Meta:
         model = models.Policy
-        fields = ('created', 'policy',)
+        fields = ('id', 'created', 'ignore', 'policy',)
 
 class PolicySerializer(serializers.ModelSerializer):
     region = serializers.CharField()
@@ -106,10 +106,14 @@ class PolicySerializer(serializers.ModelSerializer):
         fields = ('region', 'bucket',)
 
     def create(self, validated_data):
-        conn = boto.s3.connect_to_region(validated_data['region'])
+        conn = boto.s3.connect_to_region(validated_data.get('region'))
         try:
-            bucket = conn.get_bucket(validated_data['bucket'])
+            # This is redundant, since it is handled in the view, but
+            # the `QueryDict` object has proven to be immutable.
+            # Therefore, this try/except block will suffice for now.
+            bucket = conn.get_bucket(validated_data.get('bucket'))
         except boto.exception.S3ResponseError, e:
+            # Will never be handled since it is handled in the view.
             raise e
         data = {
             'created': timezone.now(),
