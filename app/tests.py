@@ -1,7 +1,10 @@
+import boto
 import boto.ec2
-import core
+import boto.exception
+import boto.s3
 import datetime
 
+from app import core
 from app import models
 from app import serializers
 from django.contrib.auth.models import User
@@ -77,7 +80,17 @@ class ProfileTestCase(TestCase):
         self.assertEqual(response.status_code, 200)
 
     def test_user_has_valid_access_and_secret_keys(self):
-        pass
+        """Assert that the call to `get_all_regions` method returns a
+        401 status code, since the AWS access key and secret key are
+        invalid."""
+        aws_access_key_id = get_random_string(length=32)
+        aws_secret_access_key = get_random_string(length=32)
+        conn = boto.connect_ec2(aws_access_key_id=aws_access_key_id,
+                                aws_secret_access_key=aws_secret_access_key)
+        try:
+            conn.get_all_regions()
+        except boto.exception.EC2ResponseError, e:
+            self.assertEqual(e.status, 401)
 
 class EmailTest(TestCase):
     def test_send_email(self):
@@ -92,7 +105,20 @@ class EmailTest(TestCase):
 
 class PolicyTestCase(TestCase):
     def setUp(self):
-        self.client = Client()
+        self.conn = boto.s3.connect_to_region(core.DEFAULT_AWS_REGION)
+        try:
+            self.bucket = self.conn.get_all_buckets()[0]
+        except IndexError, e:
+            raise e
 
-    def test_policy_is_not_none(self):
-        pass
+    def test_policy_list_is_not_none(self):
+        """Assert that the policy list is not zero after creating a new
+        policy."""
+        data = {
+            'region': core.DEFAULT_AWS_REGION,
+            'bucket': self.bucket.name,
+        }
+        serializer = serializers.PolicySerializer(data=data)
+        if serializer.is_valid(raise_exception=True):
+            policy = serializer.create(serializer.data)
+        self.assertEqual(len(models.Policy.objects.all()), 1)

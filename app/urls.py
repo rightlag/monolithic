@@ -16,6 +16,7 @@ urlpatterns = (
     url(BASE_URL_REGION + '/buckets/$', views.BucketList.as_view()),
     url(BASE_URL_REGION + r'/buckets/(?P<bucket>(.*))/$',
         views.BucketDetail.as_view()),
+    url(BASE_URL_REGION + '/billing/$', views.BillingList.as_view()),
     url(BASE_URL_REGION + '/summary/s3/$', views.S3Summary),
     url(BASE_URL_REGION + '/summary/ec2/$', views.EC2Summary),
     url(BASE_URL_REGION + '/reservations/$', views.ReservationList.as_view()),

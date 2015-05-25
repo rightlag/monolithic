@@ -7,6 +7,7 @@ import boto.ses.exceptions
 import datetime
 import itertools
 
+from app import billing
 from app import email
 from app import helpers
 from app import models
@@ -101,10 +102,7 @@ def metrics(request, region, instance_id, format=None):
       HTTP_200_OK: If the specified parameters return a list of EC2
         metric points.
 
-      HTTP_400_BAD_REQUEST: If the `start_time` and `end_time`
-        parameters do not match the `%m/%d/%Y %H:%M %p` format, or if
-          the `start_time` parameter is greater than the `end_time`
-          parameter.
+      HTTP_400_BAD_REQUEST: If a `BotoServerError` is raised.
     """
     conn = boto.ec2.cloudwatch.connect_to_region(region)
     end_time = datetime.datetime.now()
@@ -123,6 +121,17 @@ def metrics(request, region, instance_id, format=None):
     except boto.exception.BotoServerError, e:
         return Response(e.message, status=e.status)
     return Response(statistics, status=status.HTTP_200_OK)
+
+class BillingList(APIView):
+    @helpers.validate_region
+    def get(self, request, region, format=None):
+        try:
+            forecast = billing.Forecast(region=region,
+                                        bucket='mono-billing-details')
+        except boto.exception.S3ResponseError, e:
+            return Response(e.message, status=e.status)
+        return JsonResponse(list(forecast.records()),
+                            encoder=serializers.ComplexEncoder, safe=False)
 
 class BucketList(APIView):
     @helpers.validate_region
