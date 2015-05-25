@@ -133,6 +133,20 @@ class BillingList(APIView):
         return JsonResponse(list(forecast.records()),
                             encoder=serializers.ComplexEncoder, safe=False)
 
+class BillingDataPlots(APIView):
+    def get(self, request, region, format=None):
+        try:
+            forecast = billing.Forecast(region=region,
+                                        bucket='mono-billing-details')
+        except boto.exception.S3ResponseError, e:
+            return Response(e.message, status=e.status)
+        data = {
+            'AmazonEC2': list(forecast.series(service='AmazonEC2')),
+            'AmazonS3': list(forecast.series(service='AmazonS3')),
+        }
+        return JsonResponse(data, encoder=serializers.ComplexEncoder,
+                            safe=False)
+
 class BucketList(APIView):
     @helpers.validate_region
     def get(self, request, region, format=None):

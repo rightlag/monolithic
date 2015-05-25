@@ -43,7 +43,7 @@ class Billing(object):
         """Return each row of each AWS billing record as a dictionary
         object."""
         now = datetime.now()
-        fmt = '%Y/%m/%d %H:%M:%S'
+        format = '%Y/%m/%d %H:%M:%S'
         for key in self.keys:
             contents = key.get_contents_as_string()
             (headers, contents) = self._parse_contents(contents)
@@ -54,34 +54,37 @@ class Billing(object):
                 if content.get('RecordType') != 'PayerLineItem':
                     continue
                 start_date = datetime.strptime(
-                    content['BillingPeriodStartDate'], fmt
+                    content['BillingPeriodStartDate'], format
                 )
                 end_date = datetime.strptime(
-                    content['BillingPeriodEndDate'], fmt
+                    content['BillingPeriodEndDate'], format
                 )
                 if current:
                     if start_date <= now <= end_date:
                         yield content
                 else:
-                    if not start_date <= now <= end_date:
+                    if start_date <= end_date <= now:
                         yield content
 
 class Forecast(Billing):
-    def __init__(self, service=None, current=False, **kwargs):
+    def __init__(self, service=None, **kwargs):
         super(Forecast, self).__init__(**kwargs)
 
-    def records(self, current=False):
+    def records(self, service=None, current=False):
         """Return billing records given a specific time."""
         for content in super(Forecast, self).records(current=current):
-            yield content
+            if service:
+                if content['ProductCode'] == service:
+                    yield content
+            else:
+                yield content
 
-    def series(self, current=False):
+    def series(self, service=None, current=False):
         """Return Pandas series data for either the current month or
         prior months."""
-        if current:
-            series = [float(record['TotalCost'])
-                      for record in self.records(current=current)]
-        else:
-            series = [float(record['TotalCost'])
-                      for record in self.records()]
-        return pandas.Series(series)
+        keys = ('BillingPeriodEndDate', 'ProductCode', 'ItemDescription',
+                'TotalCost',)
+        return pandas.Series(
+            tuple(record.get(key) for key in keys)
+            for record in self.records(service=service, current=current)
+        )
