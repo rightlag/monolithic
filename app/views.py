@@ -5,8 +5,9 @@ import boto.exception
 import boto.s3
 import boto.ses.exceptions
 import datetime
-import json
+import itertools
 
+from app import billing
 from app import email
 from app import helpers
 from app import models
@@ -23,36 +24,14 @@ from rest_framework import viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-class ComplexEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if hasattr(obj, '__dict__'):
-            data = {}
-            for key, val in obj.__dict__.iteritems():
-                if hasattr(val, '__dict__'):
-                    # To avoid circular references
-                    continue
-                elif isinstance(val, list) or isinstance(val, tuple):
-                    elements = []
-                    for element in val:
-                        if hasattr(element, '__name__'):
-                            # If element is a class reference
-                            elements.append(element.__name__)
-                        else:
-                            elements.append(element)
-                    data[key] = elements
-                else:
-                    data[key] = val
-            return data
-        else:
-            return json.JSONEncoder.default(self, obj)
-
 class ReservationList(APIView):
     @helpers.validate_region
     def get(self, request, region, format=None):
         """Get all reservations based on region."""
         conn = boto.ec2.connect_to_region(region)
         reservations = conn.get_all_reservations()
-        return JsonResponse(reservations, encoder=ComplexEncoder, safe=False)
+        return JsonResponse(reservations, encoder=serializers.ComplexEncoder,
+                            safe=False)
 
 class ReservationDetail(APIView):
     @helpers.validate_region
@@ -68,7 +47,8 @@ class ReservationDetail(APIView):
             # The specified reservation does not exist, return a 400 bad
             # request.
             return Response(e.message, status=status.HTTP_400_BAD_REQUEST)
-        return JsonResponse(reservation.__dict__, encoder=ComplexEncoder)
+        return JsonResponse(reservation.__dict__,
+                            encoder=serializers.ComplexEncoder)
 
 class InstanceDetail(APIView):
     @helpers.validate_region
@@ -82,7 +62,8 @@ class InstanceDetail(APIView):
             # The specified instance does not exist, return a 400 bad
             # request.
             return Response(e.message, status=status.HTTP_400_BAD_REQUEST)
-        return JsonResponse(instance.__dict__, encoder=ComplexEncoder)
+        return JsonResponse(instance.__dict__,
+                            encoder=serializers.ComplexEncoder)
 
 @decorators.api_view(['GET'])
 @helpers.validate_region
@@ -108,32 +89,95 @@ def spot_price_history(request, region, instance_id, format=None):
     monthly_total = sum([instance.price for instance in spot_price_history])
     return Response(monthly_total, status=status.HTTP_200_OK)
 
-@decorators.api_view(['GET'])
+@decorators.api_view(['GET', 'POST'])
 @helpers.validate_region
 def metrics(request, region, instance_id, format=None):
-    """Get metric data for a specific EC2 instance."""
-    # Need to configure default values for metric data within core
-    # module and handle both GET and POST request methods.
+    """Get metric data for a specific EC2 instance.
+
+    GET:
+      Takes the current time and subtracts 12 hours to statically
+        generate EC2 metric data over the past 12 hours.
+
+    Returns:
+      HTTP_200_OK: If the specified parameters return a list of EC2
+        metric points.
+
+      HTTP_400_BAD_REQUEST: If a `BotoServerError` is raised.
+    """
     conn = boto.ec2.cloudwatch.connect_to_region(region)
     end_time = datetime.datetime.now()
     start_time = end_time - datetime.timedelta(hours=12)
-    dimensions = {'InstanceId': instance_id,}
-    statistics = conn.get_metric_statistics(1800,
-                                            start_time,
-                                            end_time,
-                                            'CPUUtilization',
-                                            'AWS/EC2',
-                                            ['Average',],
-                                            dimensions=dimensions)
+    dimensions = {
+        'InstanceId': instance_id,
+    }
+    try:
+        statistics = conn.get_metric_statistics(3600,
+                                                start_time,
+                                                end_time,
+                                                'CPUUtilization',
+                                                'AWS/EC2',
+                                                ['Average',],
+                                                dimensions=dimensions)
+    except boto.exception.BotoServerError, e:
+        return Response(e.message, status=e.status)
     return Response(statistics, status=status.HTTP_200_OK)
+
+class BillingList(APIView):
+    @helpers.validate_region
+    def get(self, request, region, format=None):
+        try:
+            forecast = billing.Forecast(region=region,
+                                        bucket='mono-billing-details')
+        except boto.exception.S3ResponseError, e:
+            return Response(e.message, status=e.status)
+        return JsonResponse(list(forecast.records()),
+                            encoder=serializers.ComplexEncoder, safe=False)
+
+class BillingDataPlots(APIView):
+    def get(self, request, region, format=None):
+        try:
+            forecast = billing.Forecast(region=region,
+                                        bucket='mono-billing-details')
+        except boto.exception.S3ResponseError, e:
+            return Response(e.message, status=e.status)
+        data = {
+            'AmazonEC2': list(forecast.series(service='AmazonEC2')),
+            'AmazonS3': list(forecast.series(service='AmazonS3')),
+        }
+        return JsonResponse(data, encoder=serializers.ComplexEncoder,
+                            safe=False)
 
 class BucketList(APIView):
     @helpers.validate_region
     def get(self, request, region, format=None):
-        """Get all buckets based on region."""
+        """Get all buckets and their sizes based on region."""
         conn = boto.s3.connect_to_region(region)
         buckets = conn.get_all_buckets()
-        return JsonResponse(buckets, encoder=ComplexEncoder, safe=False)
+        for i in xrange(len(buckets)):
+            size = sum([key.size for key in buckets[i].get_all_keys()])
+            # Add `size` key to bucket dictionary.
+            buckets[i].__dict__['size'] = size
+        return JsonResponse(buckets, encoder=serializers.ComplexEncoder,
+                            safe=False)
+
+class BucketDetail(APIView):
+    @helpers.validate_region
+    def get(self, request, region, bucket, format=None):
+        """Get a bucket based on region and bucket name."""
+        conn = boto.s3.connect_to_region(region)
+        try:
+            bucket = conn.get_bucket(bucket)
+            try:
+                policy = bucket.get_policy()
+            except boto.exception.S3ResponseError, e:
+                policy = None
+        except boto.exception.S3ResponseError, e:
+            return Response(e.message, status=e.status)
+        return JsonResponse({
+            'name': bucket.name,
+            'keys': bucket.get_all_keys(),
+            'policy': policy,
+        }, encoder=serializers.ComplexEncoder)
 
 @decorators.api_view(['GET'])
 @helpers.validate_region
@@ -142,11 +186,10 @@ def S3Summary(request, region):
     buckets."""
     conn = boto.s3.connect_to_region(region)
     buckets = conn.get_all_buckets()
-    size = 0
-    for bucket in buckets:
-        for key in bucket.get_all_keys():
-            # Increment key size (in bytes).
-            size += key.size
+    size = [[key.size for key in bucket.get_all_keys()]
+            for bucket in buckets]
+    # Flatten the list object and calculate the sum of the key sizes.
+    size = float(sum(itertools.chain(*size)))
     return Response({
         'buckets': len(buckets),
         'size': size,
@@ -179,31 +222,40 @@ def EC2Summary(request, region):
     response['retired'] = len(response['retired'])
     return Response(response, status=status.HTTP_200_OK)
 
-class PolicyDetail(APIView):
-    pass
+class PolicyViewSet(viewsets.ModelViewSet):
+    queryset = models.Policy.objects.all()
+    serializer_class = serializers.PolicySerializer
 
-class KeyList(APIView):
-    @helpers.validate_region
-    def get(self, request, region, bucket, format=None):
-        """Get all keys in a bucket based on region."""
-        conn = boto.s3.connect_to_region(region)
+    def create(self, request, format=None):
+        """Save a S3 bucket policy."""
+        conn = boto.s3.connect_to_region(request.data.get('region'))
         try:
-            bucket = conn.get_bucket(bucket)
-        except boto.exception.S3ResponseError, e:
-            return Response(e.message, status=status.HTTP_400_BAD_REQUEST)
-        keys = bucket.get_all_keys()
-        return JsonResponse(keys, encoder=ComplexEncoder, safe=False)
-
-class KeyDetail(APIView):
-    @helpers.validate_region
-    def get(self, request, region, bucket, key, format=None):
-        conn = boto.s3.connect_to_region(region)
-        try:
-            bucket = conn.get_bucket(bucket)
+            # Before creating the serializer instance, ensure the bucket
+            # exists.
+            bucket = conn.get_bucket(request.data.get('bucket'))
+            # Attempt to get the bucket policy. If it does not exist,
+            # prevent the user from saving the policy.
+            bucket.get_policy()
         except boto.exception.S3ResponseError, e:
             return Response(e.message, status=e.status)
-        key = bucket.get_key(key)
-        return JsonResponse(key.__dict__, encoder=ComplexEncoder)
+        serializer = serializers.PolicySerializer(data=request.data)
+        if serializer.is_valid(raise_exception=True):
+            policy = serializer.create(serializer.data)
+            request.user.policy_set.add(policy)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def update(self, request, pk=None, format=None):
+        """Update a S3 bucket policy.
+        By default, the only value being updated is the `ignore` flag.
+        """
+        try:
+            policy = models.Policy.objects.get(pk=pk)
+        except exceptions.ObjectDoesNotExist, e:
+            return Response(e.message, status=status.HTTP_404_NOT_FOUND)
+        serializer = serializers.PolicySerializer(data=request.data)
+        if serializer.is_valid(raise_exception=True):
+            serializer.update(policy, serializer.data)
+            return Response(serializer.data, status=status.HTTP_200_OK)
 
 class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all()
@@ -250,7 +302,9 @@ class UserViewSet(viewsets.ModelViewSet):
             return Response('Password has been reset successfully',
                             status=status.HTTP_200_OK)
         else:
-            context = {'request': request,}
+            context = {
+                'request': request,
+            }
             serializer = serializers.PasswordSerializer(request.data,
                                                         context=context)
             try:
@@ -289,7 +343,9 @@ class UserViewSet(viewsets.ModelViewSet):
             respectively.
         """
         if request.method == 'GET':
-            context = {'request': request,}
+            context = {
+                'request': request,
+            }
             serializer = serializers.ProfileSerializer(request.user,
                                                        context=context)
             return Response(serializer.data, status=status.HTTP_200_OK)

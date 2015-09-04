@@ -24,13 +24,10 @@ class Keypair(models.Model):
         return self.access_key
 
 class Policy(models.Model):
-    name = models.CharField(max_length=255)
-    created = models.DateTimeField()
+    created = models.DateTimeField(auto_now_add=True)
     policy = models.TextField()
+    ignore = models.BooleanField(default=False)
     user = models.ManyToManyField(User)
-
-    def __unicode__(self):
-        return self.name
 
 class Verification(models.Model):
     verification_code = models.CharField(max_length=255)

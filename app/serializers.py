@@ -1,10 +1,41 @@
-import pdb
+import boto.exception
+import boto.s3
+import json
 
+from app import helpers
 from app import models
 from django.contrib.auth.models import User
 from django.core.mail import send_mail
+from django.utils import timezone
 from django.utils.crypto import get_random_string
 from rest_framework import serializers
+
+class ComplexEncoder(json.JSONEncoder):
+    """Class used to serialize objects returned from AWS API."""
+    def default(self, obj):
+        if hasattr(obj, '__dict__'):
+            data = {}
+            for key, val in obj.__dict__.iteritems():
+                if hasattr(val, '__dict__'):
+                    # To avoid circular references
+                    continue
+                elif hasattr(val, 'isoformat'):
+                    # For date/datetime objects
+                    data[key] = val.isoformat()
+                elif isinstance(val, list) or isinstance(val, tuple):
+                    elements = []
+                    for element in val:
+                        if hasattr(element, '__name__'):
+                            # If element is a class reference
+                            elements.append(element.__name__)
+                        else:
+                            elements.append(element)
+                    data[key] = elements
+                else:
+                    data[key] = val
+            return data
+        else:
+            return json.JSONEncoder.default(self, obj)
 
 class UserSerializer(serializers.HyperlinkedModelSerializer):
     class Meta:
@@ -61,3 +92,38 @@ class PasswordSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ('username',)
+
+class PolicySerializer(serializers.ModelSerializer):
+    region = serializers.CharField(required=False, allow_blank=True)
+    bucket = serializers.CharField(required=False, allow_blank=True)
+    policy = serializers.CharField(required=False, allow_blank=True)
+
+    class Meta:
+        model = models.Policy
+        fields = ('region', 'bucket', 'id', 'created', 'ignore', 'policy',)
+
+    def create(self, validated_data):
+        conn = boto.s3.connect_to_region(validated_data.get('region'))
+        try:
+            # This is redundant, since it is handled in the view, but
+            # the `QueryDict` object has proven to be immutable.
+            # Therefore, this try/except block will suffice for now.
+            bucket = conn.get_bucket(validated_data.get('bucket'))
+            policy = bucket.get_policy()
+        except boto.exception.S3ResponseError, e:
+            # Will never be handled since it is handled in the view.
+            raise e
+        data = {
+            'created': timezone.now(),
+            'policy': bucket.get_policy(),
+        }
+        policy = models.Policy(**data)
+        policy.save()
+        return policy
+
+    def update(self, instance, validated_data):
+        instance.created = validated_data.get('created', instance.created)
+        instance.policy = validated_data.get('policy', instance.policy)
+        instance.ignore = validated_data.get('ignore', instance.ignore)
+        instance.save()
+        return instance

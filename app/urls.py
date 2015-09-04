@@ -6,6 +6,7 @@ from app import views
 router = routers.DefaultRouter()
 router.register(r'users', views.UserViewSet)
 router.register(r'keypairs', views.KeypairViewSet)
+router.register(r'policies', views.PolicyViewSet)
 
 # Separate to another module (e.g. `core.py`)
 BASE_URL_REGION = r'api/v1/(?P<region>\w+(-\w+)+)'
@@ -13,10 +14,11 @@ BASE_URL_REGION = r'api/v1/(?P<region>\w+(-\w+)+)'
 urlpatterns = (
     url(r'api/v1/', include(router.urls)),
     url(BASE_URL_REGION + '/buckets/$', views.BucketList.as_view()),
-    url(BASE_URL_REGION + r'/buckets/(?P<bucket>(.*))/keys/$',
-        views.KeyList.as_view()),
-    url(BASE_URL_REGION + r'/buckets/(?P<bucket>(.*))/keys/(?P<key>(.*))/$',
-        views.KeyDetail.as_view()),
+    url(BASE_URL_REGION + r'/buckets/(?P<bucket>(.*))/$',
+        views.BucketDetail.as_view()),
+    url(BASE_URL_REGION + '/billing/$', views.BillingList.as_view()),
+    url(BASE_URL_REGION + '/billing/plots/$',
+        views.BillingDataPlots.as_view()),
     url(BASE_URL_REGION + '/summary/s3/$', views.S3Summary),
     url(BASE_URL_REGION + '/summary/ec2/$', views.EC2Summary),
     url(BASE_URL_REGION + '/reservations/$', views.ReservationList.as_view()),
